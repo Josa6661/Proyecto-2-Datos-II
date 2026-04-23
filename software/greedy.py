@@ -104,9 +104,12 @@ def nearest_neighbor(distancias, num_destinos):
     """
     Algoritmo Greedy Nearest Neighbor para el orden de visita.
 
-    utiliza la matriz de distancias precomputada para decidir el siguiente destino más cercano
+    Entradas:
+        - distancias: matriz precomputada de distancias entre puntos
+        - num_destinos: número de estaciones a visitar (sin contar la base)    
     
-    Retorna lista de índices en el orden de visita.
+    Salidas:
+        - orden: lista de índices en el orden de visita.
     """
     visitado = [False] * (num_destinos + 1)
     visitado[0] = True
@@ -123,19 +126,26 @@ def nearest_neighbor(distancias, num_destinos):
                 mejor_siguiente = j
 
         if mejor_siguiente == -1:
-            print("Advertencia: no se encontró siguiente destino accesible.")
+            # si no existe un camino al destino se omite en el orden de visita
             break
 
         visitado[mejor_siguiente] = True
         orden.append(mejor_siguiente)
-
     orden.append(0)  # retorno obligatorio a la base
+    
     return orden
 
 
 def construir_camino_completo(orden, caminos):
     """
     Genera el camino completo del robot a travez de todas las estaciones en una sola lista
+
+    Entradas:
+    - orden: lista de índices en el orden de visita (incluye la base al inicio y al final)
+    - caminos: matriz precomputada de caminos entre puntos
+
+    Salidas:
+    - camino_total: lista que contiene todas las celdas del recorrido completo
     """
     camino_total = []
 
@@ -143,7 +153,7 @@ def construir_camino_completo(orden, caminos):
         segmento = caminos[orden[k]][orden[k + 1]]
 
         if not segmento:
-            print(f"Advertencia: no hay camino entre índice {orden[k]} y {orden[k+1]}")
+            print(f"Error: no hay camino entre índice {orden[k]} y {orden[k+1]}")
             return []
 
         if camino_total:
@@ -155,11 +165,7 @@ def construir_camino_completo(orden, caminos):
 
 
 
-def mostrar_resultado(puntos, orden, distancias, camino_total, paquetes):
-    print("________________________________________________________")
-    print("          RESULTADO — ALGORITMO GREEDY")
-    print("   (Nearest Neighbor + Dijkstra para caminos)")
-    print("________________________________________________________")
+def mostrar_resultado(puntos, orden, camino_total):
 
     print("\n orden de visita:")
     distancia_total = 0
@@ -168,8 +174,6 @@ def mostrar_resultado(puntos, orden, distancias, camino_total, paquetes):
         
         indice_origen = orden[k]
         indice_destino = orden[k + 1]
-        dist = distancias[indice_origen][indice_destino]
-        distancia_total += dist
 
         nombre_origen = "BASE" if indice_origen == 0 else f"Estación {puntos[indice_origen]}"
 
@@ -180,19 +184,17 @@ def mostrar_resultado(puntos, orden, distancias, camino_total, paquetes):
 
         print(f"  {nombre_origen}  -> {nombre_destino}")
 
-    print(f"\nDistancia total del recorrido : {distancia_total} pasos")
     print(f"Total de celdas en el camino  : {len(camino_total)}")
 
     print("\nCAMINO CELDA A CELDA:")
     print(camino_total)
 
-    
     print("\nINSTRUCCIONES PARA ROBOT:")
     print(traducir_ruta_a_instrucciones(camino_total))
     print("________________________________________________________")
 
 
-def aplicar_greedy(matriz, inicio, paquetes):
+def aplicar_greedy(matriz_mapa, inicio, paquetes):
     """
     Planifica el recorrido de entrega usando:
         - Dijkstra para calcular caminos reales entre puntos
@@ -206,37 +208,41 @@ def aplicar_greedy(matriz, inicio, paquetes):
     Salidas:
         - orden_coordenadas: lista de coordenadas en el orden de visita
         - camino_total: lista de celdas del recorrido completo
-        - distancia_total: pasos totales
     """
+
+
+    print("________________________________________________________")
+    print("          RESULTADO — ALGORITMO GREEDY")
+    print("   (Nearest Neighbor + Dijkstra para caminos)")
+    print("________________________________________________________")
+
     if not paquetes:
         print("No hay paquetes para entregar.")
-        return [], [], 0
+        return [], []
 
     destinos = [p['destino'] for p in paquetes]
     puntos = [inicio] + destinos  # índice 0 siempre es la base
 
-    print(f"  Base     : {inicio}")
-    print(f"  Destinos : {destinos}")
-
     # precomputar distancias y caminos reales con Dijkstra
-    distancias, caminos = precalcular_distancias(matriz, puntos)
+    matriz_distancias, matriz_caminos = precalcular_distancias(matriz_mapa, puntos)
 
     # Verificar que todos los destinos sean accesibles
-    #Falta: hacer que si no hay un camino disponible el sistema encuentre una solución para hacer las demás entregas
-    inaccesibles = [puntos[i] for i in range(1, len(puntos)) if distancias[0][i] == float('inf')]
+    inaccesibles = [puntos[i] for i in range(1, len(puntos)) if matriz_distancias[0][i] == float('inf')]
     if inaccesibles:
-        print(f"Error: las siguientes estaciones no son accesibles: {inaccesibles}")
-        return [], [], 0
-
+        print(f"Error: la estación {inaccesibles} no es accesible por lo que se omitirán las entregas a esta estación.")
+    if len(inaccesibles) == len(destinos):
+        print("Error: ninguna estación es accesible. No se pueden planificar entregas.")
+        return [], []
+        
     # decidir el orden con Nearest Neighbor
-    orden_indices = nearest_neighbor(distancias, len(destinos))
+    orden_indices = nearest_neighbor(matriz_distancias, len(destinos))
 
     # construir el camino completo concatenando segmentos
-    camino_total = construir_camino_completo(orden_indices, caminos)
+    camino_total = construir_camino_completo(orden_indices, matriz_caminos)
 
 
     # Mostrar resultados en pantalla
-    mostrar_resultado(puntos, orden_indices, distancias, camino_total, paquetes)
+    mostrar_resultado(puntos, orden_indices, camino_total)
 
     orden_coordenadas = [puntos[i] for i in orden_indices]
     return orden_coordenadas, camino_total
@@ -250,6 +256,7 @@ if __name__ == "__main__":
 
     # Usamos estaciones reales del mapa
     paquetes_prueba = [
+        {"id": "P01", "peso": 7,  "destino": estaciones[0], "prioridad": 10},
         {"id": "P02", "peso": 5,  "destino": estaciones[1], "prioridad": 8},
         {"id": "P03", "peso": 2,  "destino": estaciones[2], "prioridad": 5},
     ]
