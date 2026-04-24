@@ -1,97 +1,104 @@
 import random
+from lector import construir_grafo_navegacion
+from backtracking import traducir_ruta_a_instrucciones
 
-def algoritmo_las_vegas(matriz, inicio, destino, max_intentos=1000):
-    
-    def obtener_vecinos(pos):
-        f, c = pos
-        vecinos = []
-        # Movimientos: Arriba, Abajo, Izquierda, Derecha
-        movimientos = [(f-1, c), (f+1, c), (f, c-1), (f, c+1)]
-        
-        for nf, nc in movimientos:
-            if 0 <= nf < len(matriz) and 0 <= nc < len(matriz[0]):
-                # Puede pasar por Caminos (1), Inicio (2) o Estaciones (3)
-                if matriz[nf][nc] in [1, 2, 3]:
-                    vecinos.append((nf, nc))
-        return vecinos
-
+def algoritmo_las_vegas_grafo(grafo, inicio, destino, max_intentos=1000):
+    """
+    Implementar Las Vegas mediante caminata aleatoria con reinicios.
+    Si el robot se encierra aborta el intento y vuelve a empezar desde el origen.
+    """
     intento_actual = 0
+    
     while intento_actual < max_intentos:
         ruta = [inicio]
         visitados = {inicio}
         actual = inicio
-        
         pasos_en_este_intento = 0
+        
+        # Limite de pasos para evitar que se quede dando vueltas infinitas en espacios abiertos
         while actual != destino and pasos_en_este_intento < 500:
-            vecinos = obtener_vecinos(actual)
-            opciones = [v for v in vecinos if v not in visitados]
+            # Consultar los vecinos seguros
+            vecinos_con_peso = grafo.get(actual, [])
+            nodos_siguientes = [v[0] for v in vecinos_con_peso]
+            
+            # Filtrar solo los nodos por los que no hemos pasado en este intento
+            opciones = [v for v in nodos_siguientes if v not in visitados]
             
             if not opciones:
-                break # Se quedó atrapado, reiniciar intento
+                # callejon sin salida asi que rompemos este ciclo para reiniciar
+                break 
+                
             
-            # Decisión probabilística: elige un camino al azar
             actual = random.choice(opciones)
             ruta.append(actual)
             visitados.add(actual)
             pasos_en_este_intento += 1
-        
+            
         if actual == destino:
             return ruta 
-        
-        intento_actual += 1
-    
-    return None 
-if __name__ == "__main__":
-    
-    # 2=Inicio, 1=Camino, 3=Estación, 0=Obstáculo
-    mapa_multientrega = [
-        [2, 1, 1, 0, 0, 0],
-        [0, 1, 1, 1, 1, 0],
-        [0, 3, 1, 0, 1, 0], # Estación A en (2, 1)
-        [0, 1, 0, 0, 1, 0],
-        [0, 1, 1, 1, 3, 0], # Estación B en (4, 4)
-        [0, 0, 0, 0, 0, 0]
-    ]
-
-    inicio_robot = (0, 0)
-    
-  
-    paquetes_del_viaje = [
-        {"id": "PAQ-01", "destino": (2, 1)},
-        {"id": "PAQ-02", "destino": (4, 4)}
-    ]
-
-    print("=== INICIANDO PRUEBA DE ENTREGA (LAS VEGAS):")
-    punto_actual = inicio_robot
-    ruta_total_del_viaje = []
-
-    for i, paquete in enumerate(paquetes_del_viaje):
-        dest = paquete["destino"]
-        print(f"\nCalculando tramo {i+1}: Desde {punto_actual} hasta {paquete['id']} en {dest}")
-        
-        ruta_tramo = algoritmo_las_vegas(mapa_multientrega, punto_actual, dest)
-        
-        if ruta_tramo:
-            print(f"-> Ruta encontrada: {ruta_tramo}")
-            # Guardamos la ruta (evitando repetir el punto donde termina uno y empieza el otro)
-            if not ruta_total_del_viaje:
-                ruta_total_del_viaje.extend(ruta_tramo)
-            else:
-                ruta_total_del_viaje.extend(ruta_tramo[1:])
             
-            # Actualizamos la posición para el siguiente paquete
-            punto_actual = dest
-        else:
-            print(f"-> ERROR: No se pudo encontrar ruta al paquete {paquete['id']}")
-            break
+        intento_actual += 1
+        
+    return None  # Si agotamos los intentos sin encontrar una ruta
 
-    print("\n" + "="*50)
-    print(f"RESUMEN DE LA RUTA TOTAL DEL VIAJE:")
-    print(ruta_total_del_viaje)
-    print(f"Total de celdas recorridas: {len(ruta_total_del_viaje)}")
+
+def resolver_tramo_las_vegas(grafo, inicio, destino, etiqueta):
+    """
+    Gestionar la ejecucion del tramo probabilistico y su traduccion a instrucciones.
+    """
+    print(f"\n--- ANALIZANDO TRAMO {etiqueta} ---")
+    print(f"Origen {inicio} -> Destino {destino}")
     
-    # Dibujar mapa final con la ruta marcada
-    print("\nVisualización del recorrido (R = Ruta):")
-    for f, fila in enumerate(mapa_multientrega):
-        print(" ".join([" R " if (f, c) in ruta_total_del_viaje else " # " if v==0 else " . " for c, v in enumerate(fila)]))
+    ruta_aleatoria = algoritmo_las_vegas_grafo(grafo, inicio, destino)
+    
+    if ruta_aleatoria:
+        instrucciones = traducir_ruta_a_instrucciones(ruta_aleatoria)
+        print(f"Ruta generada por azar {ruta_aleatoria}")
+        print(f"Instrucciones de Hardware {instrucciones}")
+        return ruta_aleatoria
+    else:
+        print(f"Error Critico Agotados 1000 intentos para llegar a {destino}")
+        return None
 
+
+def ejecutar_viaje_completo_las_vegas(grafo, punto_inicio, lista_paquetes):
+    """
+    Gestionar la secuencia total de logistica desde la base hacia los paquetes y de vuelta.
+    """
+    print(" EJECUCION DE ALGORITMO LAS VEGAS")
+
+    ubicacion_actual = punto_inicio
+    
+    for paquete in lista_paquetes:
+        destino = paquete["destino"]
+        id_pkg = paquete["id"]
+        
+        resultado = resolver_tramo_las_vegas(grafo, ubicacion_actual, destino, f"ENTREGA {id_pkg}")
+        
+        if resultado:
+            ubicacion_actual = destino
+        else:
+            print(f" Fallo en entrega {id_pkg}")
+            return
+
+    print("\nFINALIZANDO ENTREGAS - RETORNANDO A LA BASE")
+
+    resolver_tramo_las_vegas(grafo, ubicacion_actual, punto_inicio, "RETORNO A ORIGEN")
+
+if __name__ == "__main__":
+    mapa_simulado = [
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 3], 
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
+        [1, 3, 1, 1, 1, 1, 1, 1, 1, 3]  
+    ]
+    
+    grafo = construir_grafo_navegacion(mapa_simulado)
+    
+    paquetes_viaje = [
+        {"id": "P01", "destino": (0, 9)},
+        {"id": "P02", "destino": (4, 1)}
+    ]
+    
+    ejecutar_viaje_completo_las_vegas(grafo, (0, 0), paquetes_viaje)
