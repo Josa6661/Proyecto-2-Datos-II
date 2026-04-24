@@ -76,27 +76,52 @@ def buscar_ruta_optima_backtracking(grafo, inicio, destino):
     return mejor_ruta[0]
 
 
-def resolver_ruta_y_traducir(grafo, inicio, destino):
+def resolver_tramo(grafo, inicio, destino, etiqueta):
     """
-    Función que resuelve la ruta óptima utilizando backtracking y traduce la ruta a instrucciones para el robot.
+    Calcular la ruta para un tramo especifico y generar las instrucciones de navegacion.
     """
+    print(f"\n--- ANALIZANDO TRAMO {etiqueta} ---")
+    print(f"Origen {inicio} -> Destino {destino}")
     
-    print(f"\nCALCULANDO RUTA OPTIMA CON BACKTRACKING HACIA {destino}...")
-    ruta_coordenadas = buscar_ruta_optima_backtracking(grafo, inicio, destino)
+    ruta_optima = buscar_ruta_optima_backtracking(grafo, inicio, destino)
     
-    if ruta_coordenadas:
-        print("Mejor ruta encontrada ", ruta_coordenadas)
-        instrucciones_robot = traducir_ruta_a_instrucciones(ruta_coordenadas)
-        print("Instrucciones para el hardware ", instrucciones_robot)
-        return instrucciones_robot
+    if ruta_optima:
+        instrucciones = traducir_ruta_a_instrucciones(ruta_optima)
+        print(f"Ruta Optimizada {ruta_optima}")
+        print(f"Instrucciones de Hardware {instrucciones}")
+        return ruta_optima
     else:
-        print("Error No se encontro ningun camino posible")
+        print(f"Error No se encontro paso transitable hacia {destino}")
         return None
 
 
-# Prueba local
+def ejecutar_viaje_completo(grafo, punto_inicio, lista_paquetes):
+    """
+    Gestionar la secuencia total de logistica desde la base hacia los paquetes y de vuelta.
+    """
+    print(" EJECUCION DE BACKTRACKING")
+    
+    ubicacion_actual = punto_inicio
+    
+    # Fase de Entregas
+    for paquete in lista_paquetes:
+        destino = paquete["destino"]
+        id_pkg = paquete["id"]
+        
+        resultado = resolver_tramo(grafo, ubicacion_actual, destino, f"ENTREGA {id_pkg}")
+        
+        if resultado:
+            ubicacion_actual = destino
+        else:
+            return
+
+    # Fase de Retorno
+    print("\nFINALIZANDO ENTREGAS - RETORNANDO A LA BASE")
+    
+    resolver_tramo(grafo, ubicacion_actual, punto_inicio, "RETORNO A ORIGEN")
+
 if __name__ == "__main__":
-    mapa_prueba = [
+    mapa_simulado = [
         [2, 1, 1, 1, 1, 1, 1, 1, 1, 3], 
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
@@ -104,21 +129,11 @@ if __name__ == "__main__":
         [1, 3, 1, 1, 1, 1, 1, 1, 1, 3]  
     ]
     
-    grafo_prueba = construir_grafo_navegacion(mapa_prueba)
+    grafo = construir_grafo_navegacion(mapa_simulado)
     
     paquetes_viaje = [
         {"id": "P01", "destino": (0, 9)},
-        {"id": "P02", "destino": (4, 1)}, 
-        {"id": "P03", "destino": (4, 9)}  
+        {"id": "P02", "destino": (4, 1)}
     ]
     
-    print("PRUEBA DE BACKTRACKING EXHAUSTIVO CON GRAFOS")
-    posicion_actual = (0, 0)
-    
-    for paquete in paquetes_viaje:
-        destino = paquete["destino"]
-        print(f"\n--- Calculando tramo hacia {paquete['id']} en {destino} ---")
-        
-        instrucciones = resolver_ruta_y_traducir(grafo_prueba, posicion_actual, destino)
-        if instrucciones:
-            posicion_actual = destino
+    ejecutar_viaje_completo(grafo, (0, 0), paquetes_viaje)
