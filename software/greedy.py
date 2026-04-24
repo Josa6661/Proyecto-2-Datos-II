@@ -1,6 +1,7 @@
 import heapq
 from lector import cargar_y_convertir_mapa
 from backtracking import  traducir_ruta_a_instrucciones
+import math
 
 """
 En ese archivo se implementa el algoritmo greedy para planificar el recorrido del robot de entrega.
@@ -68,128 +69,83 @@ def dijkstra(matriz, origen, destino):
     return float('inf'), []  # no hay camino
 
 
-
-def precalcular_distancias(matriz, puntos):
+def definir_orden_prioridad(puntos):
     """
-    Corre Dijkstra entre cada par de puntos y guarda
-    la distancia y el camino real.
-
-    Se guardan todas las distancias para que el algoritmo Greedy pueda determinar
-    cual es el siguiente destino más cercano sin tener que recalcular caminos cada vez.
-    
-    Entradas:
-        - matriz: mapa (0=obstáculo, 1=camino, 2=inicio, 3=estación)
-        - puntos: lista de tuplas (fila, col) de los puntos de entrega y base
-
-    salidas:
-        - distancias[i][j]: pasos de puntos[i] a puntos[j]
-        - caminos[i][j]: lista de celdas del camino de i a j
-    """
-    n = len(puntos)
-    distancias = [[0] * n for _ in range(n)]
-    caminos = [[[] for _ in range(n)] for _ in range(n)]
-
-    for i in range(n):
-        for j in range(n):
-            if i != j:
-                dist, camino = dijkstra(matriz, puntos[i], puntos[j])
-                distancias[i][j] = dist
-                caminos[i][j] = camino
-
-    return distancias, caminos
-
-
-
-def nearest_neighbor(distancias, num_destinos):
-    """
-    Algoritmo Greedy Nearest Neighbor para el orden de visita.
+    Calcula el orden de visita de las estaciones usando la heurística de la distancia entre cada estación
+    (aplica nearest neightbor)
 
     Entradas:
-        - distancias: matriz precomputada de distancias entre puntos
-        - num_destinos: número de estaciones a visitar (sin contar la base)    
-    
+        - puntos: lista de tuplas (fila, col) de la base y estaciones
     Salidas:
-        - orden: lista de índices en el orden de visita.
+        - orden: lista de tuplas (fila, col) en el orden de visita
     """
-    visitado = [False] * (num_destinos + 1)
-    visitado[0] = True
-    orden = [0]
+    punto_actual = puntos[0]
+    destinos = puntos[1:]
+    orden = [punto_actual]  # empezamos en la base
 
-    for _ in range(num_destinos):
-        actual = orden[-1]
-        mejor_dist = float('inf')
-        mejor_siguiente = -1
+    for i in range(len(destinos)):
+        distancia_menor = float('inf')
+        mejor_destino = None
 
-        for j in range(1, num_destinos + 1):
-            if not visitado[j] and distancias[actual][j] < mejor_dist:
-                mejor_dist = distancias[actual][j]
-                mejor_siguiente = j
+        for j in range(len(destinos)):
+            deltax = abs(punto_actual[0] - destinos[j][0])
+            deltay = abs(punto_actual[1] - destinos[j][1])
+            distancia_actual = math.sqrt((deltax ** 2) + (deltay ** 2))
 
-        if mejor_siguiente == -1:
-            # si no existe un camino al destino se omite en el orden de visita
-            break
+            if distancia_actual < distancia_menor:
+                mejor_destino = destinos[j]
+                distancia_menor = distancia_actual
 
-        visitado[mejor_siguiente] = True
-        orden.append(mejor_siguiente)
-    orden.append(0)  # retorno obligatorio a la base
-    
+        orden.append(mejor_destino)
+        destinos.remove(mejor_destino)
+        punto_actual = mejor_destino
+
+    orden.append(puntos[0])  # volvera la base al final
     return orden
 
 
-def construir_camino_completo(orden, caminos):
+    
+def construir_ruta_completa(orden, matriz_mapa):
     """
     Genera el camino completo del robot a travez de todas las estaciones en una sola lista
 
     Entradas:
-    - orden: lista de índices en el orden de visita (incluye la base al inicio y al final)
-    - caminos: matriz precomputada de caminos entre puntos
+    - orden: lista de tuplas (fila, col) en el orden de visita
+    - matriz_mapa: matriz del mapa para calcular caminos entre puntos usando Dijkstra
 
     Salidas:
     - camino_total: lista que contiene todas las celdas del recorrido completo
     """
     camino_total = []
+    posicion_actual = orden[0]
 
-    for k in range(len(orden) - 1):
-        segmento = caminos[orden[k]][orden[k + 1]]
+    for k in range(1, len(orden)):
+        x, camino = dijkstra(matriz_mapa, posicion_actual, orden[k])
 
-        if not segmento:
-            print(f"Error: no hay camino entre índice {orden[k]} y {orden[k+1]}")
-            return []
+        if not camino:
+            print(f"Error: no hay camino entre {posicion_actual} y {orden[k]}, se omite.")
+            continue
+        print(f"Camino entre {posicion_actual} y {orden[k]}:\n {camino} (pasos: {x})")
+        
+        print("instrucciones:")
+        print(traducir_ruta_a_instrucciones(camino)+"\n")
 
         if camino_total:
-            camino_total += segmento[1:]
+            camino_total += camino[1:]
         else:
-            camino_total += segmento
+            camino_total += camino
+
+        posicion_actual = orden[k]
 
     return camino_total
 
 
+def mostrar_resultado(inicio, orden, camino_total):
 
-def mostrar_resultado(puntos, orden, camino_total):
-
-    print("\n orden de visita:")
-    distancia_total = 0
-    
-    for k in range(len(orden) - 1):
-        
-        indice_origen = orden[k]
-        indice_destino = orden[k + 1]
-
-        nombre_origen = "BASE" if indice_origen == 0 else f"Estación {puntos[indice_origen]}"
-
-        if indice_destino == 0:
-            nombre_destino = "BASE"
-        else:
-            nombre_destino = f"Estación {puntos[indice_destino]}"
-
-        print(f"  {nombre_origen}  -> {nombre_destino}")
-
-    print(f"Total de celdas en el camino  : {len(camino_total)}")
-
-    print("\nCAMINO CELDA A CELDA:")
+    print(f"Total de pasos: {len(camino_total)}")
+    print("\nCamino celda a celda total:")
     print(camino_total)
-
-    print("\nINSTRUCCIONES PARA ROBOT:")
+    print("\nInstrucciones para robot:")
     print(traducir_ruta_a_instrucciones(camino_total))
     print("________________________________________________________")
 
@@ -223,38 +179,19 @@ def aplicar_greedy(matriz_mapa, inicio, paquetes):
     destinos = [p['destino'] for p in paquetes]
     puntos = [inicio] + destinos  # índice 0 siempre es la base
 
-    # precomputar distancias y caminos reales con Dijkstra
-    matriz_distancias, matriz_caminos = precalcular_distancias(matriz_mapa, puntos)
-
-    # Verificar que todos los destinos sean accesibles
-    inaccesibles = [puntos[i] for i in range(1, len(puntos)) if matriz_distancias[0][i] == float('inf')]
-    if inaccesibles:
-        print(f"Error: la estación {inaccesibles} no es accesible por lo que se omitirán las entregas a esta estación.")
-    if len(inaccesibles) == len(destinos):
-        print("Error: ninguna estación es accesible. No se pueden planificar entregas.")
-        return [], []
-        
-    # decidir el orden con Nearest Neighbor
-    orden_indices = nearest_neighbor(matriz_distancias, len(destinos))
-
-    # construir el camino completo concatenando segmentos
-    camino_total = construir_camino_completo(orden_indices, matriz_caminos)
-
+    orden= definir_orden_prioridad(puntos)
+    camino_total = construir_ruta_completa(orden, matriz_mapa)
 
     # Mostrar resultados en pantalla
-    mostrar_resultado(puntos, orden_indices, camino_total)
-
-    orden_coordenadas = [puntos[i] for i in orden_indices]
-    return orden_coordenadas, camino_total
-
+    mostrar_resultado(inicio, orden, camino_total)
+    cantidad_pasos= len(camino_total)
+    return camino_total, cantidad_pasos
 
 
+#Prueba
 if __name__ == "__main__":
 
     matriz, inicio, estaciones = cargar_y_convertir_mapa("mapas/tablero.json")
-
-
-    # Usamos estaciones reales del mapa
     paquetes_prueba = [
         {"id": "P01", "peso": 7,  "destino": estaciones[0], "prioridad": 10},
         {"id": "P02", "peso": 5,  "destino": estaciones[1], "prioridad": 8},
