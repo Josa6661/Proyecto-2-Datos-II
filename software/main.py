@@ -5,7 +5,8 @@ from divide_y_venceras import buscar_ruta_divide_y_venceras, suavizar_ruta
 from las_vegas import algoritmo_las_vegas_grafo
 from greedy import dijkstra, definir_orden_prioridad
 from mochila import resolver_mochila_dinamica, resolver_mochila_greedy
-
+from Programacion_Dinamica import resolver_ruta_dinamica
+from monte_carlo import monte_carlo_ruta
 
 def solicitar_un_paquete(estaciones_validas):
     """Configurar un solo paquete con validaciones estrictas"""
@@ -109,11 +110,10 @@ def solicitar_multiples_paquetes(estaciones_validas):
             
     return max_entregas, paquetes
 
-
 def ejecutar_navegacion(nombre, grafo, matriz, inicio, destino, id_t):
     """Ejecuta el algoritmo y muestra ruta/instrucciones"""
     ruta = None
-    if id_t == "1": print("[Módulo Programacion dinamica Nav Pendiente]")
+    if id_t == "1": ruta = resolver_ruta_dinamica(matriz, inicio, destino)
     elif id_t == "2": print("[Módulo Algoritmos Genéticos Pendiente]")
     elif id_t == "3": _, ruta = dijkstra(matriz, inicio, destino)
     elif id_t == "4": ruta = buscar_ruta_optima_backtracking(grafo, inicio, destino)
@@ -121,7 +121,7 @@ def ejecutar_navegacion(nombre, grafo, matriz, inicio, destino, id_t):
         ruta_c = buscar_ruta_divide_y_venceras(grafo, inicio, destino)
         ruta = suavizar_ruta(ruta_c)
     elif id_t == "6": ruta = algoritmo_las_vegas_grafo(grafo, inicio, destino)
-    elif id_t == "7": print("[Módulo Monte Carlo Pendiente]")
+    elif id_t == "7": ruta = monte_carlo_ruta(grafo, inicio, destino)
 
     if ruta:
         print(f"\nRuta ({nombre}): {ruta}")
