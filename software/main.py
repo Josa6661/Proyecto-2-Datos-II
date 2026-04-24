@@ -1,137 +1,223 @@
-from lector import cargar_y_convertir_mapa
-from mochila import resolver_mochila_dinamica
+import sys
+from lector import cargar_y_convertir_mapa, construir_grafo_navegacion
+from backtracking import buscar_ruta_optima_backtracking, traducir_ruta_a_instrucciones
+from divide_y_venceras import buscar_ruta_divide_y_venceras, suavizar_ruta
+from las_vegas import algoritmo_las_vegas_grafo
+from greedy import dijkstra, definir_orden_prioridad
+from mochila import resolver_mochila_dinamica, resolver_mochila_greedy
 
-def configurar_y_solicitar_entregas(lista_estaciones_validas):
+
+def solicitar_un_paquete(estaciones_validas):
+    """Configurar un solo paquete con validaciones estrictas"""
+    print("\n" + "-"*40)
+    print(" CONFIGURACIÓN DE PAQUETE ÚNICO")
+    print("-" * 40)
     
-    print("SISTEMA DE GESTION DEL ROBOT")
-
     while True:
-        max_entregas_str = input("Ingrese el maximo de entregas permitidas por viaje: ")
-        try:
-            max_entregas = int(max_entregas_str)
+        id_paquete = input("\nID del paquete: ").strip()
+        if id_paquete: 
             break
-        except ValueError:
-            print("Error Solo se permiten numeros enteros")
-
-    if max_entregas <= 0:
-        print("Ajustando maximo de entregas a 1 por defecto")
-        max_entregas = 1
-
-    paquetes_ingresados = []
-    ingresando_datos = True
-
-    print("\nREGISTRO DE PAQUETES")
-    print("Estaciones validas en el mapa:", lista_estaciones_validas)
-
-    while ingresando_datos:
-        print("\n--- Nuevo Paquete ---")
-        id_paquete = input("ID de la entrega: ").strip()
-
-        if id_paquete == "":
-            print("Error El ID no puede estar vacio")
-            continue
-
-        id_repetido = False
-        for paquete in paquetes_ingresados:
-            if paquete["id"] == id_paquete:
-                id_repetido = True
-                break
-
-        if id_repetido:
-            print("Error Ya existe una entrega con ese ID")
-            continue
-
+        print("Error: El ID no puede estar vacío.")
+    
+    while True:
         try:
-            peso = int(input("Peso en kilos: "))
-        except ValueError:
-            print("Error Solo se permiten numeros enteros")
-            continue
-
-        if peso <= 0:
-            print("Error El peso debe ser mayor a cero")
-            continue
-
-        while True:
-            try:
-                prioridad = int(input("Prioridad (escala del 1 al 10, 1=min, 10=max): "))
-                if prioridad < 1 or prioridad > 10:
-                    print("Error La prioridad debe estar entre 1 y 10")
-                    continue
+            peso = int(input("Peso (Máximo 20kg): "))
+            if 0 < peso <= 20: 
                 break
-            except ValueError:
-                print("Error Solo se permiten numeros enteros")
-
+            print("Error: El peso debe ser mayor a 0 y no puede exceder los 20kg.")
+        except ValueError:
+            print("Error: Ingrese un número entero.")
+            
+    print(f"\nEstaciones válidas en el mapa: {estaciones_validas}")
+    while True:
         try:
             fila = int(input("Fila del destino: "))
             col = int(input("Columna del destino: "))
-        except ValueError:
-            print("Error Solo se permiten numeros enteros")
-            continue
-
-        destino_usuario = (fila, col)
-
-        if destino_usuario not in lista_estaciones_validas:
-            print("Error Esa coordenada no es una estacion valida en el mapa")
-            continue
-
-        nuevo_paquete = {
-            "id": id_paquete,
-            "peso": peso,
-            "destino": destino_usuario,
-            "prioridad": prioridad
-        }
-
-        paquetes_ingresados.append(nuevo_paquete)
-        print(f"Paquete {id_paquete} registrado con exito")
-
-        while True:
-            respuesta = input("Desea ingresar otro paquete? (s/n): ")
-            if respuesta.lower() == 's' or respuesta.lower() == 'n':
+            destino = (fila, col)
+            if destino in estaciones_validas:
                 break
-            print("Error Responda solo con s o n")
+            print("Error: Esa coordenada no es una estación válida.")
+        except ValueError:
+            print("Error: Ingrese números enteros.")
+            
+    return {"id": id_paquete, "peso": peso, "destino": destino}
 
-        if respuesta.lower() != 's':
-            ingresando_datos = False
 
-    return max_entregas, paquetes_ingresados
+def solicitar_multiples_paquetes(estaciones_validas):
+    """Configurar bodega con validación de peso, prioridad e IDs"""
+    print("\n" + "-"*40)
+    print(" CONFIGURACIÓN DE BODEGA")
+    print("-" * 40)
+    
+    while True:
+        try:
+            max_entregas = int(input("Máximo de entregas permitidas por viaje: "))
+            if max_entregas > 0: break
+            print("Error: Debe ser un número mayor a 0.")
+        except ValueError:
+            print("Error: Ingrese un número entero.")
 
-def ejecutar_sistema():
-    ruta_mapa = "mapas/tablero.json"
-    matriz, inicio, estaciones_validas = cargar_y_convertir_mapa(ruta_mapa)
-    
-    limite_entregas, paquetes_pendientes = configurar_y_solicitar_entregas(estaciones_validas)
-    
-    print("\nRESUMEN DE ENTREGAS")
-    print(f"Total de paquetes registrados: {len(paquetes_pendientes)}")
-    peso_total = sum(p["peso"] for p in paquetes_pendientes)
-    print(f"Peso total: {peso_total} kilos")
-    print(f"Maximo de entregas permitidas: {limite_entregas}")
-    
-    numero_viaje = 1
-    
-    print("\nPROCESANDO RUTA CON PROGRAMACION DINAMICA...")
-    
-    while len(paquetes_pendientes) > 0:
-        print(f"\n--- PLANIFICANDO VIAJE #{numero_viaje} ---")
-    
-        ganancia, paquetes_para_el_viaje = resolver_mochila_dinamica(paquetes_pendientes, 20, limite_entregas)
+    paquetes = []
+    while True:
+        print(f"\n--- Paquete #{len(paquetes)+1} ---")
+        print(f"Estaciones válidas: {estaciones_validas}")
         
-        if len(paquetes_para_el_viaje) == 0:
-            print("Alerta: Los paquetes restantes son demasiado pesados para la capacidad del robot (20kg).")
-            print("Paquetes varados:", [p['id'] for p in paquetes_pendientes])
+        id_p = input("ID del paquete: ").strip()
+        if not id_p:
+            print("Error: El ID no puede estar vacío.")
+            continue
+            
+        if any(p["id"] == id_p for p in paquetes):
+            print("Error: Ya registraste un paquete con ese ID.")
+            continue
+        
+        while True:
+            try:
+                peso = int(input("Peso (Máximo 20kg): "))
+                if 0 < peso <= 20: break
+                print("Error: Cada paquete debe pesar entre 1kg y 20kg.")
+            except ValueError:
+                print("Error: Ingrese un número entero.")
+        
+        while True:
+            try:
+                prioridad = int(input("Prioridad (1-10): "))
+                if 1 <= prioridad <= 10: break
+                print("Error: La prioridad debe ser un número del 1 al 10.")
+            except ValueError:
+                print("Error: Ingrese un número entero.")
+        
+        while True:
+            try:
+                f = int(input("Fila del destino: "))
+                c = int(input("Columna del destino: "))
+                dest = (f, c)
+                if dest in estaciones_validas: break
+                print("Error: Coordenada inválida. Revise la lista de estaciones.")
+            except ValueError:
+                print("Error: Ingrese números enteros.")
+            
+        paquetes.append({"id": id_p, "peso": peso, "prioridad": prioridad, "destino": dest})
+        
+        while True:
+            respuesta = input("\n¿Agregar otro paquete? (s/n): ").lower()
+            if respuesta in ['s', 'n']: break
+            print("Error: Ingrese solo 's' o 'n'.")
+            
+        if respuesta == 'n':
             break
+            
+    return max_entregas, paquetes
+
+
+def ejecutar_navegacion(nombre, grafo, matriz, inicio, destino, id_t):
+    """Ejecuta el algoritmo y muestra ruta/instrucciones"""
+    ruta = None
+    if id_t == "1": print("[Módulo Programacion dinamica Nav Pendiente]")
+    elif id_t == "2": print("[Módulo Algoritmos Genéticos Pendiente]")
+    elif id_t == "3": _, ruta = dijkstra(matriz, inicio, destino)
+    elif id_t == "4": ruta = buscar_ruta_optima_backtracking(grafo, inicio, destino)
+    elif id_t == "5":
+        ruta_c = buscar_ruta_divide_y_venceras(grafo, inicio, destino)
+        ruta = suavizar_ruta(ruta_c)
+    elif id_t == "6": ruta = algoritmo_las_vegas_grafo(grafo, inicio, destino)
+    elif id_t == "7": print("[Módulo Monte Carlo Pendiente]")
+
+    if ruta:
+        print(f"\nRuta ({nombre}): {ruta}")
+        print(f"Instrucciones: {traducir_ruta_a_instrucciones(ruta)}")
+    return ruta
+
+
+def menu_navegacion(grafo, matriz, inicio, estaciones):
+    pkg = solicitar_un_paquete(estaciones)
+    dest = pkg["destino"]
+    
+    while True:
+        print("\n" + "="*40)
+        print(f" TÉCNICAS DE NAVEGACIÓN (Paquete: {pkg['id']})")
+        print("="*40)
+        print("1. Programacion dinamica")
+        print("2. Algoritmos Genéticos")
+        print("3. Greedy")
+        print("4. Backtracking")
+        print("5. Divide y Vencerás")
+        print("6. Probabilistico: Las Vegas")
+        print("7. Probabilistico: Monte Carlo")
+        print("0. Volver")
         
-        print(f"El robot cargara {len(paquetes_para_el_viaje)} paquetes en este recorrido")
-        print("Paquetes seleccionados:")
-        for p in paquetes_para_el_viaje:
-            print(f"- {p['id']} hacia destino {p['destino']} (Prioridad: {p['prioridad']}, Peso: {p['peso']}kg)")
+        op = input("\nSeleccione técnica: ")
+        nombres = ["", "Programacion dinamica", "Algoritmos Genéticos", "Greedy", 
+                   "Backtracking", "Divide y Vencerás", "Probabilistico: Las Vegas", "Probabilistico: Monte Carlo"]
         
-        ids_seleccionados = [p['id'] for p in paquetes_para_el_viaje]
-        paquetes_pendientes = [p for p in paquetes_pendientes if p['id'] not in ids_seleccionados]
+        if op == "0": break
+        if "1" <= op <= "7":
+            print(f"\n>>> IDA: BASE -> {dest}")
+            ejecutar_navegacion(nombres[int(op)], grafo, matriz, inicio, dest, op)
+            print(f"\n>>> VUELTA: {dest} -> BASE")
+            ejecutar_navegacion(nombres[int(op)], grafo, matriz, dest, inicio, op)
+            input("\nPresione Enter para continuar...")
+        else:
+            print("Opción inválida.")
+
+
+def menu_mochila(grafo, matriz, inicio, estaciones):
+    max_e, bodega = solicitar_multiples_paquetes(estaciones)
+    
+    while True:
+        print("\n" + "="*40)
+        print(" EVALUACIÓN DE MOCHILA")
+        print("="*40)
+        print("1. Programacion dinamica")
+        print("2. Greedy")
+        print("0. Volver")
         
-        numero_viaje += 1
+        op = input("\nOpción: ")
+        if op == "0": break
         
-    print("\nLa logistica de carga ha finalizado")
+        if op == "1":
+            ganancia, seleccionados = resolver_mochila_dinamica(bodega, 20, max_e)
+            print("\n--- RESULTADO: Programacion dinamica ---")
+        elif op == "2":
+            ganancia, seleccionados = resolver_mochila_greedy(bodega, 20, max_e)
+            print("\n--- RESULTADO: Greedy ---")
+        else: 
+            print("Opción inválida.")
+            continue
+            
+        print(f"Paquetes: {[p['id'] for p in seleccionados]} | Prioridad total: {ganancia}")
         
+        # Secuencia y Ejecución de Rutas (Aquí se calcula el camino físico real)
+        orden = definir_orden_prioridad([inicio] + [p['destino'] for p in seleccionados])
+        
+        print("\n>>> EJECUTANDO RUTA DE LOGÍSTICA (Navegación tramo por tramo)")
+        actual = inicio
+        for i in range(1, len(orden)):
+            destino_t = orden[i]
+            print(f"\nTramo {i}: {actual} -> {destino_t}")
+            ejecutar_navegacion("Greedy (Dijkstra)", grafo, matriz, actual, destino_t, "3") # Usa Greedy por defecto para mover el robot
+            actual = destino_t
+        input("\nPresione Enter para continuar...")
+
+
+def main():
+    ruta_mapa = "mapas/tablero.json"
+    matriz, inicio, estaciones = cargar_y_convertir_mapa(ruta_mapa)
+    grafo = construir_grafo_navegacion(matriz)
+    
+    while True:
+        print("\n" + "*"*50)
+        print(" SISTEMA LOGÍSTICO TEC")
+        print("*"*50)
+        print("1. Ejecutar las técnicas (1 Paquete)")
+        print("2. Ejecutar la Mochila (Múltiples Paquetes)")
+        print("0. Salir")
+        
+        op = input("\nSeleccione: ")
+        if op == "1": menu_navegacion(grafo, matriz, inicio, estaciones)
+        elif op == "2": menu_mochila(grafo, matriz, inicio, estaciones)
+        elif op == "0": sys.exit()
+        else: print("Opción inválida.")
+
 if __name__ == "__main__":
-    ejecutar_sistema()
+    main()
