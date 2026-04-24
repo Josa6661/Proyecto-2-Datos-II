@@ -140,7 +140,7 @@ def construir_ruta_completa(orden, matriz_mapa):
     return camino_total
 
 
-def mostrar_resultado(inicio, orden, camino_total):
+def mostrar_resultado(camino_total):
 
     print(f"Total de pasos: {len(camino_total)}")
     print("\nCamino celda a celda total:")
@@ -183,7 +183,7 @@ def aplicar_greedy(matriz_mapa, inicio, paquetes):
     camino_total = construir_ruta_completa(orden, matriz_mapa)
 
     # Mostrar resultados en pantalla
-    mostrar_resultado(inicio, orden, camino_total)
+    mostrar_resultado(camino_total)
     cantidad_pasos= len(camino_total)
     return camino_total, cantidad_pasos
 
@@ -193,9 +193,9 @@ if __name__ == "__main__":
 
     matriz, inicio, estaciones = cargar_y_convertir_mapa("mapas/tablero.json")
     paquetes_prueba = [
-        {"id": "P01", "peso": 7,  "destino": estaciones[0], "prioridad": 10},
-        {"id": "P02", "peso": 5,  "destino": estaciones[1], "prioridad": 8},
-        {"id": "P03", "peso": 2,  "destino": estaciones[2], "prioridad": 5},
+        {"id": "P01", "peso": 7, "destino": estaciones[0], "prioridad": 10},
+        {"id": "P02", "peso": 5, "destino": estaciones[1], "prioridad": 8},
+        {"id": "P03", "peso": 2, "destino": estaciones[2], "prioridad": 5},
     ]
 
     orden, camino = aplicar_greedy(matriz, inicio, paquetes_prueba)
