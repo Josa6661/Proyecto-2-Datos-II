@@ -109,31 +109,54 @@ def buscar_ruta_divide_y_venceras(grafo, inicio, destino, profundidad=0):
     return buscar_ruta_corta_bfs(grafo, inicio, destino)
 
 
-def resolver_ruta_divide(grafo, inicio, destino):
+def resolver_tramo(grafo, inicio, destino, etiqueta):
     """
-    Función principal para resolver la ruta utilizando el enfoque de divide y vencerás.
-    Incluye pasos de suavizado para eliminar ciclos y generar instrucciones de navegación claras.
+    Resuelve un tramo específico de la ruta utilizando el enfoque de divide y vencerás.
     """
-    print(f"\n--- CALCULANDO RUTA DIVIDE Y VENCERAS HACIA {destino} ---")
+    print(f"\n--- CALCULANDO TRAMO {etiqueta} HACIA {destino} ---")
     
-    ruta_cruda = buscar_ruta_divide_y_venceras(grafo, inicio, destino)
-    print("Ruta original con posibles vueltas: ", ruta_cruda)
+    ruta_original = buscar_ruta_divide_y_venceras(grafo, inicio, destino)
+    ruta_suavizada = suavizar_ruta(ruta_original)
     
-    ruta_final = suavizar_ruta(ruta_cruda)
-    print("Ruta pasada por el suavizador: ", ruta_final)
+    print(f"Ruta Original (Divide y Venceras): {ruta_original}")
+    print(f"Ruta Suavizada (Optimizada):   {ruta_suavizada}")
     
-    if ruta_final:
-        instrucciones = traducir_ruta_a_instrucciones(ruta_final)
-        print("Instrucciones de navegacion: ", instrucciones)
-        return instrucciones
+    if ruta_suavizada:
+        instrucciones = traducir_ruta_a_instrucciones(ruta_suavizada)
+        print(f"Instrucciones de Hardware: {instrucciones}")
+        return ruta_suavizada
+    else:
+        print(f"Error: No se pudo encontrar camino hacia {destino}")
+        return None
+    
+def ejecutar_viaje_completo(grafo, punto_inicio, lista_paquetes):
+    """
+    Ejecuta el ciclo completo de entregas, resolviendo cada tramo de la ruta.
+    """
+    print("\nINICIANDO RUTA DE ENTREGAS CON DIVIDE Y VENCERAS")
+    
+    ubicacion_actual = punto_inicio
+    
+    # Procesar cada paquete en la lista
+    for paquete in lista_paquetes:
+        destino = paquete["destino"]
+        id_pkg = paquete["id"]
         
-    print("Error: Mapa bloqueado o ruta inaccesible.")
-    return None
+        resultado = resolver_tramo(grafo, ubicacion_actual, destino, f"ENTREGA {id_pkg}")
+        
+        if resultado:
+            ubicacion_actual = destino
+        else:
+            return
 
-
+    # Ejecutar tramo de retorno a la base (0,0)
+    print("\nENTREGAS FINALIZADAS - CALCULANDO RETORNO A BASE")
+    
+    resolver_tramo(grafo, ubicacion_actual, punto_inicio, "RETORNO A BASE")
+    
 # Bloque de prueba unitaria
 if __name__ == "__main__":
-    mapa_prueba = [
+    mapa_ejemplo = [
         [2, 1, 1, 1, 1, 1, 1, 1, 1, 3], 
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
@@ -141,16 +164,13 @@ if __name__ == "__main__":
         [1, 3, 1, 1, 1, 1, 1, 1, 1, 3]  
     ]
     
-    grafo_prueba = construir_grafo_navegacion(mapa_prueba)
+    grafo = construir_grafo_navegacion(mapa_ejemplo)
     
-    paquetes_viaje = [
+    # Simulacion de paquetes seleccionados por la mochila
+    paquetes = [
         {"id": "P01", "destino": (0, 9)},
         {"id": "P02", "destino": (4, 1)}
     ]
     
-    posicion_actual = (0, 0)
-    
-    for paquete in paquetes_viaje:
-        instrucciones = resolver_ruta_divide(grafo_prueba, posicion_actual, paquete["destino"])
-        if instrucciones:
-            posicion_actual = paquete["destino"]
+    # El punto (0,0) es nuestra base de carga
+    ejecutar_viaje_completo(grafo, (0, 0), paquetes)
