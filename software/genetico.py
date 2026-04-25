@@ -178,29 +178,34 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
     generaciones = 100
     tam_poblacion = 20
 
-    poblacion = crear_poblacion(destinos, tam_poblacion)
+    if len(destinos) < 2:
+        #si no hay elementos suficientes para aplicar el algoritmo genético, se construye el camino directo
+        camino_total = construir_camino_completo(inicio, destinos, matriz_mapa)
 
-    for _ in range(generaciones):
-        nueva_poblacion = []
+    else:
+        poblacion = crear_poblacion(destinos, tam_poblacion)
 
-        for _ in range(tam_poblacion):
-            padre1 = seleccionar_padre(poblacion, matriz_mapa, inicio)
-            padre2 = seleccionar_padre(poblacion, matriz_mapa, inicio)
+        for _ in range(generaciones):
+            nueva_poblacion = []
 
-            hijo = cruzar(padre1, padre2)
-            mutar(hijo)
+            for _ in range(tam_poblacion):
+                padre1 = seleccionar_padre(poblacion, matriz_mapa, inicio)
+                padre2 = seleccionar_padre(poblacion, matriz_mapa, inicio)
 
-            nueva_poblacion.append(hijo)
+                hijo = cruzar(padre1, padre2)
+                mutar(hijo)
 
-        poblacion = nueva_poblacion
+                nueva_poblacion.append(hijo)
 
-    mejor = poblacion[0]
+            poblacion = nueva_poblacion
 
-    for individuo in poblacion:
-        if calcular_fitness(individuo, matriz_mapa, inicio) < calcular_fitness(mejor, matriz_mapa, inicio):
-            mejor = individuo
+        mejor = poblacion[0]
 
-    camino_total = construir_camino_completo(inicio, mejor, matriz_mapa)
+        for individuo in poblacion:
+            if calcular_fitness(individuo, matriz_mapa, inicio) < calcular_fitness(mejor, matriz_mapa, inicio):
+                mejor = individuo
+
+        camino_total = construir_camino_completo(inicio, mejor, matriz_mapa)
 
     print("\nCamino total:")
     print(camino_total)
