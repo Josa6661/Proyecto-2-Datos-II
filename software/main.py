@@ -7,6 +7,7 @@ from greedy import dijkstra, definir_orden_prioridad
 from mochila import resolver_mochila_dinamica, resolver_mochila_greedy
 from Programacion_Dinamica import resolver_ruta_dinamica
 from monte_carlo import monte_carlo_ruta
+from genetico import aplicar_genetico
 
 def solicitar_un_paquete(estaciones_validas):
     """Configurar un solo paquete con validaciones estrictas"""
@@ -114,7 +115,8 @@ def ejecutar_navegacion(nombre, grafo, matriz, inicio, destino, id_t):
     """Ejecuta el algoritmo y muestra ruta/instrucciones"""
     ruta = None
     if id_t == "1": ruta = resolver_ruta_dinamica(matriz, inicio, destino)
-    elif id_t == "2": print("[Módulo Algoritmos Genéticos Pendiente]")
+    elif id_t == "2":
+        pass
     elif id_t == "3": _, ruta = dijkstra(matriz, inicio, destino)
     elif id_t == "4": ruta = buscar_ruta_optima_backtracking(grafo, inicio, destino)
     elif id_t == "5":
@@ -126,8 +128,11 @@ def ejecutar_navegacion(nombre, grafo, matriz, inicio, destino, id_t):
     if ruta:
         print(f"\nRuta ({nombre}): {ruta}")
         print(f"Instrucciones: {traducir_ruta_a_instrucciones(ruta)}")
+        print(f"Pasos: {len(ruta)-1}")
+    else:
+        print(f"\nError: No se encontró un camino válido hacia/desde {destino} usando {nombre}.")
+    
     return ruta
-
 
 def menu_navegacion(grafo, matriz, inicio, estaciones):
     pkg = solicitar_un_paquete(estaciones)
@@ -152,10 +157,28 @@ def menu_navegacion(grafo, matriz, inicio, estaciones):
         
         if op == "0": break
         if "1" <= op <= "7":
-            print(f"\n>>> IDA: BASE -> {dest}")
-            ejecutar_navegacion(nombres[int(op)], grafo, matriz, inicio, dest, op)
-            print(f"\n>>> VUELTA: {dest} -> BASE")
-            ejecutar_navegacion(nombres[int(op)], grafo, matriz, dest, inicio, op)
+            ruta_ida = []
+            ruta_vuelta = []
+            
+            if op == "2":
+                aplicar_genetico(matriz, inicio, [pkg]) 
+            else:
+                print(f"\n>>> IDA: BASE -> {dest}")
+                ruta_ida = ejecutar_navegacion(nombres[int(op)], grafo, matriz, inicio, dest, op)
+                
+                if ruta_ida:
+                    print(f"\n>>> VUELTA: {dest} -> BASE")
+                    ruta_vuelta = ejecutar_navegacion(nombres[int(op)], grafo, matriz, dest, inicio, op)
+                else:
+                    print(f"\nNo se pudo completar la ruta de ida, por lo que no se intentará la vuelta.")
+                    
+                if ruta_ida and ruta_vuelta:
+                    pasos_totales = (len(ruta_ida) - 1) + (len(ruta_vuelta) - 1)
+                    print("\n" + "="*40)
+                    print(" RESUMEN DEL VIAJE COMPLETO")
+                    print("="*40)
+                    print(f"Total de pasos (Ida + Vuelta): {pasos_totales}")
+            
             input("\nPresione Enter para continuar...")
         else:
             print("Opción inválida.")
@@ -190,13 +213,31 @@ def menu_mochila(grafo, matriz, inicio, estaciones):
         # Secuencia y Ejecución de Rutas (Aquí se calcula el camino físico real)
         orden = definir_orden_prioridad([inicio] + [p['destino'] for p in seleccionados])
         
+        if orden[-1] != inicio:
+            orden.append(inicio)
+        
         print("\n>>> EJECUTANDO RUTA DE LOGÍSTICA (Navegación tramo por tramo)")
         actual = inicio
+        tramo_num = 1
+        
         for i in range(1, len(orden)):
             destino_t = orden[i]
+            
+            if actual == destino_t: #Validar si por fallos, el robot ya está en el destino
+                continue
+            
             print(f"\nTramo {i}: {actual} -> {destino_t}")
-            ejecutar_navegacion("Greedy (Dijkstra)", grafo, matriz, actual, destino_t, "3") # Usa Greedy por defecto para mover el robot
-            actual = destino_t
+            
+            ruta_tramo = ejecutar_navegacion("Greedy (Dijkstra)", grafo, matriz, actual, destino_t, "3") # Usa Greedy por defecto para mover el robot
+            
+            if ruta_tramo:
+                actual = destino_t
+            else:
+                print(f"\nError:Estación {destino_t} inalcanzable.")
+                print(f"El paquete se marca como 'No Entregado'. El robot recalculará desde su posición actual: {actual}")
+                
+            tramo_num += 1
+            
         input("\nPresione Enter para continuar...")
 
 

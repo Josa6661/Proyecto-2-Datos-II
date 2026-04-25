@@ -213,9 +213,12 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
     print("\nInstrucciones totales:")
     print(traducir_ruta_a_instrucciones(camino_total))
 
-    cantidad_pasos = len(camino_total)
-    print(f"\nTotal de pasos: {cantidad_pasos}")
-
+    if len(camino_total) > 1:
+        cantidad_pasos = len(camino_total) - 1 
+        print(f"\nTotal de pasos: {cantidad_pasos}")
+    else:
+        cantidad_pasos = 0
+        print(f"\nTotal de pasos: 0 (El robot no pudo moverse)")
     return camino_total, cantidad_pasos
 
 

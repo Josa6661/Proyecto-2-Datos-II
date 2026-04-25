@@ -2,7 +2,7 @@ import random
 from lector import construir_grafo_navegacion
 from backtracking import traducir_ruta_a_instrucciones
 
-def algoritmo_las_vegas_grafo(grafo, inicio, destino, max_intentos=1000):
+def algoritmo_las_vegas_grafo(grafo, inicio, destino, max_intentos=5000):
     """
     Implementar Las Vegas mediante caminata aleatoria con reinicios.
     Si el robot se encierra aborta el intento y vuelve a empezar desde el origen.
@@ -57,7 +57,7 @@ def resolver_tramo_las_vegas(grafo, inicio, destino, etiqueta):
         print(f"Instrucciones de Hardware {instrucciones}")
         return ruta_aleatoria
     else:
-        print(f"Error Critico Agotados 1000 intentos para llegar a {destino}")
+        print(f"Error Critico Agotados 5000 intentos para llegar a {destino}")
         return None
 
 
