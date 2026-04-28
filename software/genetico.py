@@ -145,10 +145,6 @@ def construir_camino_completo(inicio,orden, matriz_mapa):
         if not camino:
             print(f"Error: no hay camino entre {posicion_actual} y {orden[k]}, se omite.")
             continue
-        print(f"Camino entre {posicion_actual} y {orden[k]}:\n {camino} (pasos: {x})")
-        
-        print("instrucciones:")
-        print(traducir_ruta_a_instrucciones(camino)+"\n")
 
         if camino_total:
             camino_total += camino[1:]
