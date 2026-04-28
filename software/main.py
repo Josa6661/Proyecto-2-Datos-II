@@ -161,6 +161,7 @@ def menu_navegacion(grafo, matriz, inicio, estaciones):
             ruta_vuelta = []
             
             if op == "2":
+                print("paquetes:", [pkg])
                 aplicar_genetico(matriz, inicio, [pkg]) 
             else:
                 print(f"\n>>> IDA: BASE -> {dest}")

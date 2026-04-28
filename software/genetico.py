@@ -2,7 +2,6 @@ import random
 from lector import cargar_y_convertir_mapa
 from greedy import dijkstra
 from backtracking import traducir_ruta_a_instrucciones
-import matplotlib.pyplot as plt
 
 
 """
@@ -140,7 +139,12 @@ def construir_camino_completo(inicio,orden, matriz_mapa):
 
     for k in range(1, len(orden)):
 
-        x, camino = diccionario_dijkstra[(posicion_actual, orden[k])]
+        tramo = diccionario_dijkstra.get((posicion_actual, orden[k]))
+        if tramo is None:
+            tramo = dijkstra(matriz_mapa, posicion_actual, orden[k])
+            diccionario_dijkstra[(posicion_actual, orden[k])] = tramo
+
+        x, camino = tramo
 
         if not camino:
             print(f"Error: no hay camino entre {posicion_actual} y {orden[k]}, se omite.")
@@ -208,6 +212,20 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
     if len(destinos) < 2:
         #si no hay elementos suficientes para aplicar el algoritmo genético, se construye el camino directo
         camino_total = construir_camino_completo(inicio, destinos, matriz_mapa)
+        print("\nCamino total:")
+        print(camino_total)
+
+        print("\nInstrucciones totales:")
+        print(traducir_ruta_a_instrucciones(camino_total))
+
+        if len(camino_total) > 1:
+            cantidad_pasos = len(camino_total) - 1 
+            print(f"\nTotal de pasos: {cantidad_pasos}")
+        else:
+            cantidad_pasos = 0
+            print(f"\nTotal de pasos: 0 (El robot no pudo moverse)")
+
+        return camino_total, cantidad_pasos
 
     destinos_accesibles = obtener_destinos_accesibles(inicio, destinos, matriz_mapa)
 
@@ -223,7 +241,7 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
             tam_poblacion = 5
         else:
             generaciones = 20
-            tam_poblacion = 10
+            tam_poblacion = 20
 
         destinos = destinos_accesibles
 
@@ -240,6 +258,7 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
                 mutar(hijo)
 
                 nueva_poblacion.append(hijo)
+            poblacion = nueva_poblacion
 
         mejor = poblacion[0]
 
@@ -255,8 +274,12 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
     print("\nInstrucciones totales:")
     print(traducir_ruta_a_instrucciones(camino_total))
 
-    cantidad_pasos = len(camino_total) - 1 
-    print(f"\nTotal de pasos: {cantidad_pasos}")
+    if len(camino_total) > 1:
+        cantidad_pasos = len(camino_total) - 1 
+        print(f"\nTotal de pasos: {cantidad_pasos}")
+    else:
+        cantidad_pasos = 0
+        print(f"\nTotal de pasos: 0 (El robot no pudo moverse)")
 
     return camino_total, cantidad_pasos
 
