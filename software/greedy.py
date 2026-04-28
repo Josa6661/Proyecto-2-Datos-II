@@ -125,10 +125,6 @@ def construir_ruta_completa(orden, matriz_mapa):
         if not camino:
             print(f"Error: no hay camino entre {posicion_actual} y {orden[k]}, se omite.")
             continue
-        print(f"Camino entre {posicion_actual} y {orden[k]}:\n {camino} (pasos: {x})")
-        
-        print("instrucciones:")
-        print(traducir_ruta_a_instrucciones(camino)+"\n")
 
         if camino_total:
             camino_total += camino[1:]
@@ -193,9 +189,13 @@ if __name__ == "__main__":
 
     matriz, inicio, estaciones = cargar_y_convertir_mapa("mapas/tablero.json")
     paquetes_prueba = [
-        {"id": "P01", "peso": 7, "destino": estaciones[0], "prioridad": 10},
-        {"id": "P02", "peso": 5, "destino": estaciones[1], "prioridad": 8},
-        {"id": "P03", "peso": 2, "destino": estaciones[2], "prioridad": 5},
+        {"id": "P01", "peso": 7, "destino": estaciones[0]},
+        {"id": "P02", "peso": 5, "destino": estaciones[1]},
+        {"id": "P03", "peso": 2, "destino": estaciones[2]},
+        {"id": "P04", "peso": 2, "destino": estaciones[3]},
+        {"id": "P05", "peso": 3, "destino": estaciones[4]},
+        {"id": "P06", "peso": 2, "destino": estaciones[5]},
+        {"id": "P07", "peso": 2, "destino": estaciones[6]},
+        {"id": "P08", "peso": 3, "destino": estaciones[7]}
     ]
-
     orden, camino = aplicar_greedy(matriz, inicio, paquetes_prueba)
