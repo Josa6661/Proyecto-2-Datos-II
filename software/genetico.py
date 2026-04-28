@@ -2,13 +2,19 @@ import random
 from lector import cargar_y_convertir_mapa
 from greedy import dijkstra
 from backtracking import traducir_ruta_a_instrucciones
+import matplotlib.pyplot as plt
+
 
 """
 En este archivo se implementa el algoritmo genético para planificar el recorrido del robot.
 
 El algoritmo genético optimiza el orden de visita de las estaciones.
 Dijkstra calcula el camino real entre cada par de puntos.
+
+Se utiliza un diccionario para almacenar los resultados de Dijkstra entre pares de puntos
+ evitando cálculos repetidos y mejorando la eficiencia.
 """
+diccionario_dijkstra = {}
 
 def calcular_fitness(individuo, matriz, inicio):
     """
@@ -27,7 +33,12 @@ def calcular_fitness(individuo, matriz, inicio):
     distancia_total = 0
 
     for i in range(len(ruta) - 1):
-        dist, _ = dijkstra(matriz, ruta[i], ruta[i+1])
+        if (ruta[i], ruta[i+1]) in diccionario_dijkstra:
+            dist, _ = diccionario_dijkstra[(ruta[i], ruta[i+1])]
+        else:
+            dist, _ = dijkstra(matriz, ruta[i], ruta[i+1])
+            diccionario_dijkstra[(ruta[i], ruta[i+1])] = (dist, _)
+
         distancia_total += dist
 
     return distancia_total
@@ -128,7 +139,8 @@ def construir_camino_completo(inicio,orden, matriz_mapa):
     posicion_actual = orden[0]
 
     for k in range(1, len(orden)):
-        x, camino = dijkstra(matriz_mapa, posicion_actual, orden[k])
+
+        x, camino = diccionario_dijkstra[(posicion_actual, orden[k])]
 
         if not camino:
             print(f"Error: no hay camino entre {posicion_actual} y {orden[k]}, se omite.")
@@ -147,7 +159,29 @@ def construir_camino_completo(inicio,orden, matriz_mapa):
 
     return camino_total
 
+def obtener_destinos_accesibles(inicio, destinos, matriz_mapa):
+    """
+    Verifica qué destinos son accesibles desde el inicio utilizando Dijkstra y devuelve una lista de destinos accesibles.
 
+    Entradas:
+    - inicio: tupla (fila, col) de la base del robot
+    - destinos: lista de tuplas (fila, col) de las estaciones a visitar
+    - matriz_mapa: matriz del mapa para calcular caminos entre puntos usando Dijkstra
+
+    Salidas:
+    - destinos_accesibles: lista de tuplas (fila, col) de estaciones que son accesibles desde el inicio
+    """
+    destinos_accesibles = []
+    for destino in destinos:
+        dist, _ = dijkstra(matriz_mapa, inicio, destino)
+        diccionario_dijkstra[(inicio, destino)] = (dist, _)
+
+        if dist == float('inf'):
+            print(f"Advertencia: estación {destino} no es accesible desde {inicio}.")
+        else:
+            destinos_accesibles.append(destino)
+
+    return destinos_accesibles
 
 def aplicar_genetico(matriz_mapa, inicio, paquetes):
     """
@@ -158,7 +192,7 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
     Entradas:
         - matriz   : mapa como lista de listas (0=obstáculo)
         - inicio   : tupla (fila, col) de la base del robot
-        - paquetes : lista de dicts {id, peso, destino, prioridad}
+        - paquetes : lista de dicts {id, peso, destino, ...}
 
     Salidas:
         - camino_total  : lista de celdas del recorrido completo
@@ -175,14 +209,28 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
 
     destinos = [p["destino"] for p in paquetes]
 
-    generaciones = 100
-    tam_poblacion = 20
-
     if len(destinos) < 2:
         #si no hay elementos suficientes para aplicar el algoritmo genético, se construye el camino directo
         camino_total = construir_camino_completo(inicio, destinos, matriz_mapa)
 
+    destinos_accesibles = obtener_destinos_accesibles(inicio, destinos, matriz_mapa)
+
+    if not destinos_accesibles:
+        print("Error: ninguna estación es accesible desde la base.")
+        return [], 0
+
     else:
+
+        n=len(destinos_accesibles)
+        if n <= 3:
+            generaciones = 5
+            tam_poblacion = 5
+        else:
+            generaciones = 20
+            tam_poblacion = 10
+
+        destinos = destinos_accesibles
+
         poblacion = crear_poblacion(destinos, tam_poblacion)
 
         for _ in range(generaciones):
@@ -196,8 +244,6 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
                 mutar(hijo)
 
                 nueva_poblacion.append(hijo)
-
-            poblacion = nueva_poblacion
 
         mejor = poblacion[0]
 
@@ -213,22 +259,21 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
     print("\nInstrucciones totales:")
     print(traducir_ruta_a_instrucciones(camino_total))
 
-    if len(camino_total) > 1:
-        cantidad_pasos = len(camino_total) - 1 
-        print(f"\nTotal de pasos: {cantidad_pasos}")
-    else:
-        cantidad_pasos = 0
-        print(f"\nTotal de pasos: 0 (El robot no pudo moverse)")
+    cantidad_pasos = len(camino_total) - 1 
+    print(f"\nTotal de pasos: {cantidad_pasos}")
+
     return camino_total, cantidad_pasos
 
 
 if __name__ == "__main__":
     matriz, inicio, estaciones = cargar_y_convertir_mapa("mapas/tablero.json")
-
     paquetes_prueba = [
-        {"id": "P01", "peso": 7, "destino": estaciones[0], "prioridad": 10},
-        {"id": "P02", "peso": 5, "destino": estaciones[1], "prioridad": 8},
-        {"id": "P03", "peso": 2, "destino": estaciones[2], "prioridad": 5},
+        {"id": "P02", "peso": 5, "destino": estaciones[1]},
+        {"id": "P03", "peso": 2, "destino": estaciones[2]},
+        {"id": "P04", "peso": 2, "destino": estaciones[3]},
+        {"id": "P05", "peso": 3, "destino": estaciones[4]},
+        {"id": "P06", "peso": 2, "destino": estaciones[5]},
+        {"id": "P07", "peso": 2, "destino": estaciones[6]},
+        {"id": "P08", "peso": 3, "destino": estaciones[7]}
     ]
-
     aplicar_genetico(matriz, inicio, paquetes_prueba)
