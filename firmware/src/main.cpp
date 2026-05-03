@@ -58,6 +58,21 @@ void handleRoot() {
   server.send(200, "text/html", html);
 }
 
+void handleRuta() {
+  if (server.hasArg("cmd")) {
+    String comandos = server.arg("cmd"); // Agarra el D1,B3 que manda Python
+    Serial.println("\n>>> NUEVA RUTA RECIBIDA DESDE WI-FI <<<");
+    Serial.println("Comandos: " + comandos);
+    
+    delay(2000); // Simulamos que dura 2 segundos manejando
+    
+    // Se manda un mensaje de vuelta al cliente para confirmar que se recibió la ruta
+    server.send(200, "text/plain", "OK"); 
+  } else {
+    server.send(400, "text/plain", "Error: Falta el parametro cmd");
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   delay(2000); // Esperar a que el monitor serial esté listo
@@ -100,6 +115,7 @@ void setup() {
     server.send(200, "text/plain", "Arrancando cuadrado...");
     ejecutarRutina();
   });
+  server.on("/ruta", handleRuta);
 
   server.begin();
   Serial.println("✓ Servidor web iniciado en puerto 80");

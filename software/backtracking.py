@@ -120,6 +120,38 @@ def ejecutar_viaje_completo(grafo, punto_inicio, lista_paquetes):
     
     resolver_tramo(grafo, ubicacion_actual, punto_inicio, "RETORNO A ORIGEN")
 
+def traducir_para_esp32(ruta_coordenadas):
+    """Convierte la ruta en un string comprimido tipo D1,B3,I2 para el hardware"""
+    if not ruta_coordenadas or len(ruta_coordenadas) < 2:
+        return ""
+        
+    instrucciones = []
+    dir_actual = None
+    pasos = 0
+
+    for i in range(1, len(ruta_coordenadas)):
+        f_ant, c_ant = ruta_coordenadas[i-1]
+        f_act, c_act = ruta_coordenadas[i]
+
+        if f_act > f_ant: nueva_dir = "B" # Bajar
+        elif f_act < f_ant: nueva_dir = "S" # Subir
+        elif c_act > c_ant: nueva_dir = "D" # Derecha
+        elif c_act < c_ant: nueva_dir = "I" # Izquierda
+        else: continue
+
+        if nueva_dir == dir_actual:
+            pasos += 1
+        else:
+            if dir_actual is not None:
+                instrucciones.append(f"{dir_actual}{pasos}")
+            dir_actual = nueva_dir
+            pasos = 1
+
+    if dir_actual is not None:
+        instrucciones.append(f"{dir_actual}{pasos}")
+
+    return ",".join(instrucciones) + "\n"
+
 if __name__ == "__main__":
     mapa_simulado = [
         [2, 1, 1, 1, 1, 1, 1, 1, 1, 3], 

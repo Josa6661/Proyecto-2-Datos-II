@@ -2,12 +2,15 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import io, sys
 import time
+import urllib.request
+import urllib.parse
 
 from lector import cargar_y_convertir_mapa, construir_grafo_navegacion
 from main import ejecutar_navegacion, solicitar_multiples_paquetes
 from mochila import resolver_mochila_dinamica, resolver_mochila_greedy
 from greedy import definir_orden_prioridad
 from genetico import aplicar_genetico
+from backtracking import traducir_para_esp32
 
 # ---------------- CARGA INICIAL ----------------
 ruta_mapa = 'mapas/tablero.json'
