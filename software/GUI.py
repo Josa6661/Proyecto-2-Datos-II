@@ -182,14 +182,69 @@ def ejecutar_gui_nav():
             print('Peso:', peso, 'kg')
             print('Destino:', destino)
             
+            IP_ESP32 = "192.168.50.243"
+            
             if id_alg == '2':
                 paquete_dict = {'id': paquete, 'peso': peso, 'destino': destino, 'prioridad': 5}
-                aplicar_genetico(matriz, inicio, [paquete_dict])
+                ruta_completa, pasos_totales = aplicar_genetico(matriz, inicio, [paquete_dict])
+                
+                if ruta_completa:
+                    comando_robot = traducir_para_esp32(ruta_completa)
+                    print(f"\n[TRANSMITIENDO RUTA GENÉTICA] Instruccion al ESP32: {comando_robot.strip()}")
+                    try:
+                        cmd_seguro = urllib.parse.quote(comando_robot.strip())
+                        url = f"http://{IP_ESP32}/ruta?cmd={cmd_seguro}"
+                        
+                        req = urllib.request.Request(url, headers={'Connection': 'close'})
+                        with urllib.request.urlopen(req, timeout=60) as respuesta:
+                            resp_texto = respuesta.read().decode('utf-8').strip()
+                            if "OK" in resp_texto:
+                                print("[EXITO] Ruta genética completada físicamente por el robot.")
+                            else:
+                                print(f"[AVISO] El ESP32 respondio: {resp_texto}")
+                    except Exception as e:
+                        print(f"[ERROR] Falla Wi-Fi en el genético: {e}")
             else:
                 print('\n>>> IDA')
                 ruta1 = ejecutar_navegacion(nombre, grafo, matriz, inicio, destino, id_alg)
+                
+                if ruta1:
+                    comando_robot = traducir_para_esp32(ruta1)
+                    print(f"\n[TRANSMITIENDO IDA] Instruccion al ESP32: {comando_robot.strip()}")
+                    try:
+                        cmd_seguro = urllib.parse.quote(comando_robot.strip())
+                        url = f"http://{IP_ESP32}/ruta?cmd={cmd_seguro}"
+                        
+                        req = urllib.request.Request(url, headers={'Connection': 'close'})
+                        with urllib.request.urlopen(req, timeout=60) as respuesta:
+                            resp_texto = respuesta.read().decode('utf-8').strip()
+                            if "OK" in resp_texto:
+                                print("[EXITO] Paquete entregado fisicamente.")
+                            else:
+                                print(f"[AVISO] El ESP32 respondio: {resp_texto}")
+                    except Exception as e:
+                        print(f"[ERROR] Falla Wi-Fi en la ida: {e}")
+
                 print('\n>>> REGRESO')
                 ruta2 = ejecutar_navegacion(nombre, grafo, matriz, destino, inicio, id_alg)
+                
+                if ruta2:
+                    comando_robot2 = traducir_para_esp32(ruta2)
+                    print(f"\n[TRANSMITIENDO REGRESO] Instruccion al ESP32: {comando_robot2.strip()}")
+                    try:
+                        cmd_seguro = urllib.parse.quote(comando_robot2.strip())
+                        url = f"http://{IP_ESP32}/ruta?cmd={cmd_seguro}"
+                        
+                        req = urllib.request.Request(url, headers={'Connection': 'close'})
+                        with urllib.request.urlopen(req, timeout=60) as respuesta:
+                            resp_texto = respuesta.read().decode('utf-8').strip()
+                            if "OK" in resp_texto:
+                                print("[EXITO] Robot regreso a la base.")
+                            else:
+                                print(f"[AVISO] El ESP32 respondio: {resp_texto}")
+                    except Exception as e:
+                        print(f"[ERROR] Falla Wi-Fi en el regreso: {e}")
+
                 pasos = 0
                 if ruta1: pasos += len(ruta1)-1
                 if ruta2: pasos += len(ruta2)-1
@@ -421,12 +476,54 @@ def resolver(tipo):
 
         actual = inicio
         tramo = 1
+        IP_ESP32 = "192.168.50.243"
+
         for dest in orden[1:]:
             out_mo.insert(tk.END, f'Tramo {tramo}: {actual} -> {dest}\n')
-            txt = capturar_salida(lambda a=actual,d=dest: ejecutar_navegacion('Greedy', grafo, matriz, a, d, '3'))
+            
+            ruta_tramo = []
+            def aux_ejecutar():
+                nonlocal ruta_tramo
+                ruta_tramo = ejecutar_navegacion('Greedy', grafo, matriz, actual, dest, '3')
+                
+            txt = capturar_salida(aux_ejecutar)
             out_mo.insert(tk.END, txt + '\n')
+
+            # Si no hay ruta, no movemos el robot y saltamos al siguiente destino
+            if not ruta_tramo:
+                out_mo.insert(tk.END, f"[ALERTA] Destino inalcanzable. Se omite el paquete hacia {dest}.\n\n")
+                continue # Brinca a la siguiente vuelta del ciclo sin cambiar "actual"
+            # ---------------------------
+            
+            comando_robot = traducir_para_esp32(ruta_tramo)
+            out_mo.insert(tk.END, f"[TRANSMITIENDO] ESP32: {comando_robot.strip()}\n")
+            out_mo.see(tk.END)
+            root.update()
+            
+            try:
+                cmd_seguro = urllib.parse.quote(comando_robot.strip())
+                url = f"http://{IP_ESP32}/ruta?cmd={cmd_seguro}"
+                
+                # Usamos Request para forzar que el puerto se libere para el siguiente tramo
+                req = urllib.request.Request(url, headers={'Connection': 'close'})
+                with urllib.request.urlopen(req, timeout=60) as respuesta:
+                    # El .strip() limpia espacios invisibles
+                    resp_texto = respuesta.read().decode('utf-8').strip() 
+                    
+                    # Si la respuesta contiene "OK" (sea "OK" u "OK_LLEGUE"), marca exito
+                    if "OK" in resp_texto:
+                        out_mo.insert(tk.END, "[EXITO] Robot reportó llegada al punto intermedio.\n\n")
+                    else:
+                        out_mo.insert(tk.END, f"[AVISO] El carro respondio algo distinto: {resp_texto}\n\n")
+                        
+            except Exception as e:
+                out_mo.insert(tk.END, f"[ERROR] Falla Wi-Fi: {e}\n\n")
+
+            # Solo actualiza la posicion "actual" si el viaje fue exitoso
             actual = dest
             tramo += 1
+            root.update()
+            
     except Exception as e:
         messagebox.showerror('Error', str(e))
 
