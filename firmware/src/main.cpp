@@ -3,17 +3,18 @@
 #include <WebServer.h>
 
 // --- CONFIGURACIÓN WIFI ---
-const char* ssid = "Fam CH";
-const char* password = "fchf1013";
+const char* ssid = "Xiaomi_2405";
+const char* password = "famqch0506";
 WebServer server(80);
 
-// --- PINES (Iguales a los anteriores) ---
+// --- PINES ---
 const int IN1 = 11; const int IN2 = 12;
 const int IN3 = 13; const int IN4 = 14;
 const int SENSOR_IZQ = 4; const int SENSOR_DER = 5;
 
 volatile int pasosIzq = 0;
 volatile int pasosDer = 0;
+char orientacionActual = 'S'; 
 
 void IRAM_ATTR contarPasoIzq() { pasosIzq++; }
 void IRAM_ATTR contarPasoDer() { pasosDer++; }
@@ -24,35 +25,148 @@ void detener() {
   delay(500);
 }
 
+// --- FUNCIONES DE MOVIMIENTO CON DETECTOR DE ATASCO ---
 void avanzar(float cm) {
   int objetivo = cm / 1.021;
   pasosIzq = 0; pasosDer = 0;
+  
+  unsigned long tiempoAtasco = millis();
+  int tempIzq = 0; int tempDer = 0;
+
   digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
   digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
-  while (pasosIzq < objetivo && pasosDer < objetivo) { delay(5); }
+
+  while (pasosIzq < objetivo || pasosDer < objetivo) { 
+    if (pasosIzq >= objetivo) { digitalWrite(IN1, LOW); digitalWrite(IN2, LOW); }
+    if (pasosDer >= objetivo) { digitalWrite(IN3, LOW); digitalWrite(IN4, LOW); }
+    
+    // Si algún sensor registra un paso, reiniciamos el cronómetro de atasco
+    if (pasosIzq != tempIzq || pasosDer != tempDer) {
+      tiempoAtasco = millis();
+      tempIzq = pasosIzq; 
+      tempDer = pasosDer;
+    }
+    
+    // Si pasan 2 segundos sin dar NINGÚN paso, chocamos. Rompemos el ciclo.
+    if (millis() - tiempoAtasco > 2000) {
+      Serial.println("¡ATASCO DETECTADO EN AVANCE! Salvando WiFi...");
+      break; 
+    }
+    delay(1); 
+  }
   detener();
 }
 
 void girar90() {
-  int objetivoGiro = 12; // El valor que ajustaste antes
+  int objetivoIzq = 12; 
   pasosIzq = 0; pasosDer = 0;
+  
+  unsigned long tiempoAtasco = millis();
+  int tempIzq = 0; int tempDer = 0;
+  
+  digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH);
+  
+  while (pasosIzq < objetivoIzq || pasosDer < objetivoIzq) { 
+    if (pasosIzq >= objetivoIzq) { digitalWrite(IN1, LOW); digitalWrite(IN2, LOW); }
+    if (pasosDer >= objetivoIzq) { digitalWrite(IN3, LOW); digitalWrite(IN4, LOW); }
+    
+    if (pasosIzq != tempIzq || pasosDer != tempDer) {
+      tiempoAtasco = millis();
+      tempIzq = pasosIzq; tempDer = pasosDer;
+    }
+    if (millis() - tiempoAtasco > 2000) {
+      Serial.println("¡ATASCO EN GIRO IZQ! Salvando WiFi...");
+      break;
+    }
+    delay(1);
+  }
+  detener(); 
+}
+
+void girar90Der() {
+  int objetivoDer = 12; 
+  pasosIzq = 0; pasosDer = 0;
+  
+  unsigned long tiempoAtasco = millis();
+  int tempIzq = 0; int tempDer = 0;
+  
   digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH);
   digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
-  while (pasosIzq < objetivoGiro && pasosDer < objetivoGiro) { delay(5); }
+  
+  while (pasosIzq < objetivoDer || pasosDer < objetivoDer) { 
+    if (pasosIzq >= objetivoDer) { digitalWrite(IN1, LOW); digitalWrite(IN2, LOW); }
+    if (pasosDer >= objetivoDer) { digitalWrite(IN3, LOW); digitalWrite(IN4, LOW); }
+    
+    if (pasosIzq != tempIzq || pasosDer != tempDer) {
+      tiempoAtasco = millis();
+      tempIzq = pasosIzq; tempDer = pasosDer;
+    }
+    if (millis() - tiempoAtasco > 2000) {
+      Serial.println("¡ATASCO EN GIRO DER! Salvando WiFi...");
+      break;
+    }
+    delay(1); 
+  }
   detener();
 }
 
-// Función que ejecuta el cuadrado
+// --- LÓGICA DE RUTA ---
 void ejecutarRutina() {
   for (int i = 0; i < 4; i++) {
-    avanzar(50);
-    girar90();
+    girar90Der(); 
+    delay(1000); 
   }
 }
 
-// Página Web
+void apuntarHacia(char nuevaDir) {
+  if (orientacionActual == nuevaDir) return; 
+
+  if ((orientacionActual == 'D' && nuevaDir == 'I') || (orientacionActual == 'I' && nuevaDir == 'D') ||
+      (orientacionActual == 'S' && nuevaDir == 'B') || (orientacionActual == 'B' && nuevaDir == 'S')) {
+    girar90(); girar90(); 
+  }
+  else if ((orientacionActual == 'D' && nuevaDir == 'B') || (orientacionActual == 'B' && nuevaDir == 'I') ||
+           (orientacionActual == 'I' && nuevaDir == 'S') || (orientacionActual == 'S' && nuevaDir == 'D')) {
+    girar90Der();
+  }
+  else {
+    girar90();
+  }
+  orientacionActual = nuevaDir; 
+}
+
+void ejecutarRutaDinamica(String ruta) {
+  int indice = 0;
+  while (indice < ruta.length()) {
+    char direccion = ruta.charAt(indice); 
+    indice++;
+    
+    String numStr = "";
+    while (indice < ruta.length() && isDigit(ruta.charAt(indice))) {
+      numStr += ruta.charAt(indice);
+      indice++;
+    }
+    int cuadros = numStr.toInt();
+    
+    if (cuadros > 0) {
+      Serial.print("Girando hacia: "); Serial.println(direccion);
+      apuntarHacia(direccion);
+      Serial.print("Avanzando cuadros: "); Serial.println(cuadros);
+      for (int i = 0; i < cuadros; i++) {
+        avanzar(30); 
+        delay(200);  
+      }
+    }
+    if (indice < ruta.length() && ruta.charAt(indice) == ',') {
+      indice++;
+    }
+  }
+}
+
+// --- SERVIDOR WEB ---
 void handleRoot() {
-  String html = "<html><body><h1>Control ESP32-S3</h1>";
+  String html = "<html><body><h1>Control Robot ESP32</h1>";
   html += "<button onclick=\"location.href='/arrancar'\" style='width:200px;height:100px;font-size:30px;'>ARRANCAR CUADRADO</button>";
   html += "</body></html>";
   server.send(200, "text/html", html);
@@ -60,14 +174,9 @@ void handleRoot() {
 
 void handleRuta() {
   if (server.hasArg("cmd")) {
-    String comandos = server.arg("cmd"); // Agarra el D1,B3 que manda Python
-    Serial.println("\n>>> NUEVA RUTA RECIBIDA DESDE WI-FI <<<");
-    Serial.println("Comandos: " + comandos);
-    
-    delay(2000); // Simulamos que dura 2 segundos manejando
-    
-    // Se manda un mensaje de vuelta al cliente para confirmar que se recibió la ruta
-    server.send(200, "text/plain", "OK"); 
+    String comandos = server.arg("cmd");
+    server.send(200, "text/plain", "OK"); // Libera la red antes de moverse
+    ejecutarRutaDinamica(comandos);
   } else {
     server.send(400, "text/plain", "Error: Falta el parametro cmd");
   }
@@ -75,53 +184,30 @@ void handleRuta() {
 
 void setup() {
   Serial.begin(115200);
-  delay(2000); // Esperar a que el monitor serial esté listo
-  Serial.println("\n\n=== ESP32-S3 INICIANDO ===");
+  delay(2000); 
+  
   pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
   pinMode(SENSOR_IZQ, INPUT); pinMode(SENSOR_DER, INPUT);
-  Serial.println("✓ Pines configurados");
+  
   attachInterrupt(digitalPinToInterrupt(SENSOR_IZQ), contarPasoIzq, RISING);
   attachInterrupt(digitalPinToInterrupt(SENSOR_DER), contarPasoDer, RISING);
-  Serial.println("✓ Interrupciones adjuntas");
 
-  // Conectar a WiFi con timeout
-  Serial.print("Conectando a WiFi: ");
-  Serial.println(ssid);
   WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+  Serial.println("\n✓ Conectado a WiFi! IP: " + WiFi.localIP().toString());
 
-  int intentos = 0;
-  int maxIntentos = 20;  // 10 segundos máximo (20 * 500ms)
-
-  while (WiFi.status() != WL_CONNECTED && intentos < maxIntentos) {
-    delay(500);
-    Serial.print(".");
-    intentos++;
-  }
-
-  Serial.println();
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("✓ Conectado a WiFi!");
-    Serial.print("IP del carro: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("✗ NO se conectó a WiFi (continuando de todas formas)");
-  }
-
-  // Configurar rutas del servidor
   server.on("/", handleRoot);
   server.on("/arrancar", []() {
-    server.send(200, "text/plain", "Arrancando cuadrado...");
+    server.send(200, "text/plain", "Arrancando...");
     ejecutarRutina();
   });
   server.on("/ruta", handleRuta);
 
   server.begin();
-  Serial.println("✓ Servidor web iniciado en puerto 80");
-  Serial.println("=== LISTO ===\n");
+  Serial.println("=== SISTEMA LISTO ===");
 }
 
 void loop() {
-  server.handleClient(); // Mantener el servidor escuchando
+  server.handleClient(); 
 }

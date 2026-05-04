@@ -4,6 +4,7 @@ import io, sys
 import time
 import urllib.request
 import urllib.parse
+import socket
 
 from lector import cargar_y_convertir_mapa, construir_grafo_navegacion
 from main import ejecutar_navegacion, solicitar_multiples_paquetes
@@ -12,6 +13,10 @@ from greedy import definir_orden_prioridad
 from genetico import aplicar_genetico
 from backtracking import traducir_para_esp32
 
+# Memoria para guardar las rutas antes de enviarlas al ESP32
+rutas_pendientes_nav = []
+rutas_pendientes_mochila = []
+IP_ESP32_GLOBAL = "192.168.50.243"
 # ---------------- CARGA INICIAL ----------------
 ruta_mapa = 'mapas/tablero.json'
 matriz, inicio, estaciones = cargar_y_convertir_mapa(ruta_mapa)
@@ -182,7 +187,8 @@ def ejecutar_gui_nav():
             print('Peso:', peso, 'kg')
             print('Destino:', destino)
             
-            IP_ESP32 = "192.168.50.243"
+            global rutas_pendientes_nav
+            rutas_pendientes_nav = [] # Limpiar la memoria
             
             if id_alg == '2':
                 paquete_dict = {'id': paquete, 'peso': peso, 'destino': destino, 'prioridad': 5}
@@ -190,60 +196,24 @@ def ejecutar_gui_nav():
                 
                 if ruta_completa:
                     comando_robot = traducir_para_esp32(ruta_completa)
-                    print(f"\n[TRANSMITIENDO RUTA GENÉTICA] Instruccion al ESP32: {comando_robot.strip()}")
-                    try:
-                        cmd_seguro = urllib.parse.quote(comando_robot.strip())
-                        url = f"http://{IP_ESP32}/ruta?cmd={cmd_seguro}"
-                        
-                        req = urllib.request.Request(url, headers={'Connection': 'close'})
-                        with urllib.request.urlopen(req, timeout=60) as respuesta:
-                            resp_texto = respuesta.read().decode('utf-8').strip()
-                            if "OK" in resp_texto:
-                                print("[EXITO] Ruta genética completada físicamente por el robot.")
-                            else:
-                                print(f"[AVISO] El ESP32 respondio: {resp_texto}")
-                    except Exception as e:
-                        print(f"[ERROR] Falla Wi-Fi en el genético: {e}")
+                    rutas_pendientes_nav.append(comando_robot)
+                    print(f"\n[RUTA GENETICA CALCULADA]: {comando_robot.strip()}")
             else:
                 print('\n>>> IDA')
                 ruta1 = ejecutar_navegacion(nombre, grafo, matriz, inicio, destino, id_alg)
                 
                 if ruta1:
                     comando_robot = traducir_para_esp32(ruta1)
-                    print(f"\n[TRANSMITIENDO IDA] Instruccion al ESP32: {comando_robot.strip()}")
-                    try:
-                        cmd_seguro = urllib.parse.quote(comando_robot.strip())
-                        url = f"http://{IP_ESP32}/ruta?cmd={cmd_seguro}"
-                        
-                        req = urllib.request.Request(url, headers={'Connection': 'close'})
-                        with urllib.request.urlopen(req, timeout=60) as respuesta:
-                            resp_texto = respuesta.read().decode('utf-8').strip()
-                            if "OK" in resp_texto:
-                                print("[EXITO] Paquete entregado fisicamente.")
-                            else:
-                                print(f"[AVISO] El ESP32 respondio: {resp_texto}")
-                    except Exception as e:
-                        print(f"[ERROR] Falla Wi-Fi en la ida: {e}")
+                    rutas_pendientes_nav.append(comando_robot)
+                    print(f"[RUTA IDA CALCULADA]: {comando_robot.strip()}")
 
                 print('\n>>> REGRESO')
                 ruta2 = ejecutar_navegacion(nombre, grafo, matriz, destino, inicio, id_alg)
                 
                 if ruta2:
                     comando_robot2 = traducir_para_esp32(ruta2)
-                    print(f"\n[TRANSMITIENDO REGRESO] Instruccion al ESP32: {comando_robot2.strip()}")
-                    try:
-                        cmd_seguro = urllib.parse.quote(comando_robot2.strip())
-                        url = f"http://{IP_ESP32}/ruta?cmd={cmd_seguro}"
-                        
-                        req = urllib.request.Request(url, headers={'Connection': 'close'})
-                        with urllib.request.urlopen(req, timeout=60) as respuesta:
-                            resp_texto = respuesta.read().decode('utf-8').strip()
-                            if "OK" in resp_texto:
-                                print("[EXITO] Robot regreso a la base.")
-                            else:
-                                print(f"[AVISO] El ESP32 respondio: {resp_texto}")
-                    except Exception as e:
-                        print(f"[ERROR] Falla Wi-Fi en el regreso: {e}")
+                    rutas_pendientes_nav.append(comando_robot2)
+                    print(f"[RUTA REGRESO CALCULADA]: {comando_robot2.strip()}")
 
                 pasos = 0
                 if ruta1: pasos += len(ruta1)-1
@@ -251,11 +221,76 @@ def ejecutar_gui_nav():
                 print('\nRESUMEN')
                 print('Total de pasos:', pasos)
 
+            print("\n" + "-"*50)
+            print("[INFO] Rutas listas en memoria.")
+            print("--> Presione 'TRANSMITIR AL ROBOT' para iniciar el movimiento fisico.")
+            print("-" * 50)
+
         texto = capturar_salida(proceso)
         out_nav.delete('1.0', tk.END)
         out_nav.insert(tk.END, texto)
     except Exception as e:
         messagebox.showerror('Error', str(e))
+        
+def transmitir_nav():
+    global rutas_pendientes_nav, IP_ESP32_GLOBAL
+    if not rutas_pendientes_nav:
+        messagebox.showwarning("Aviso", "Primero debe ejecutar y calcular una ruta.")
+        return
+        
+    out_nav.insert(tk.END, "\n" + "="*50 + "\nINICIANDO TRANSMISION WI-FI\n" + "="*50 + "\n")
+    error_critico = False 
+    
+    # Recorrer cada ruta pendiente (ida y regreso) y enviarla al ESP32
+    for i, comando_completo in enumerate(rutas_pendientes_nav):
+        if i == 1:
+            out_nav.insert(tk.END, f"\n[PAUSA] Llegada. Esperando 3s...\n")
+            out_nav.see(tk.END); root.update()
+            time.sleep(3)
+            out_nav.insert(tk.END, f"[REGRESO] Iniciando Etapa 2...\n")
+        else:
+            out_nav.insert(tk.END, f"[IDA] Iniciando Etapa 1...\n")
+        
+        comandos_separados = comando_completo.strip().split(',')
+        
+        for cmd in comandos_separados:
+            if not cmd: continue # Ignora comas vacias
+            
+            out_nav.insert(tk.END, f"  -> Ejecutando {cmd}... ")
+            out_nav.see(tk.END); root.update()
+            
+            try:
+                cmd_seguro = urllib.parse.quote(cmd)
+                url = f"http://{IP_ESP32_GLOBAL}/ruta?cmd={cmd_seguro}"
+                req = urllib.request.Request(url, headers={'Connection': 'close'})
+                
+                with urllib.request.urlopen(req, timeout=15) as respuesta:
+                    resp_texto = respuesta.read().decode('utf-8').strip()
+                    if "OK" in resp_texto:
+                        out_nav.insert(tk.END, f"[OK] Movimiento {cmd} finalizado.\n")
+                    else:
+                        out_nav.insert(tk.END, f"[AVISO] {resp_texto}\n")
+           
+            except socket.timeout:
+                out_nav.insert(tk.END, f"\n[ERROR] El carro no respondió a tiempo (Timeout).\n")
+                error_critico = True
+                break
+            except Exception as e:
+                out_nav.insert(tk.END, f"\n[ERROR RED] {e}\n")
+                error_critico = True
+                break
+        
+        if error_critico:
+            out_nav.insert(tk.END, f"\n[ABORTADO] Conexión Perdida.\n")
+            break 
+        else:
+            out_nav.insert(tk.END, f"\n[EXITO] Etapa {i+1} completada.\n")
+            root.update()
+            
+    # Solo imprimimos el exito total si terminamos sin levantar banderas
+    if not error_critico:
+        out_nav.insert(tk.END, f"\n[EXITO TOTAL] Viaje logistico completado al 100%.\n")
+    rutas_pendientes_nav = []# Limpiar memoria para el siguiente envío
 
 def comparar_gui_nav():
     try:
@@ -293,6 +328,19 @@ tk.Button(
     cursor='hand2',
     command=ejecutar_gui_nav
 ).grid(row=0, column=0, padx=8)
+
+tk.Button(
+    btns,
+    text='TRANSMITIR AL ROBOT',
+    bg='#198754',
+    fg='white',
+    font=('Arial', 11, 'bold'),
+    width=20,
+    height=2,
+    bd=0,
+    cursor='hand2',
+    command=transmitir_nav
+).grid(row=0, column=3, padx=8)
 
 tk.Button(
     btns,
