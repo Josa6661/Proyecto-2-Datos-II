@@ -264,10 +264,10 @@ def transmitir_nav():
                 url = f"http://{IP_ESP32_GLOBAL}/ruta?cmd={cmd_seguro}"
                 req = urllib.request.Request(url, headers={'Connection': 'close'})
                 
-                with urllib.request.urlopen(req, timeout=15) as respuesta:
+                with urllib.request.urlopen(req, timeout=60) as respuesta:
                     resp_texto = respuesta.read().decode('utf-8').strip()
                     if "OK" in resp_texto:
-                        out_nav.insert(tk.END, f"[OK] Movimiento {cmd} finalizado.\n")
+                        out_nav.insert(tk.END, f"[LLEGÓ]\n")
                     else:
                         out_nav.insert(tk.END, f"[AVISO] {resp_texto}\n")
            
@@ -279,18 +279,35 @@ def transmitir_nav():
                 out_nav.insert(tk.END, f"\n[ERROR RED] {e}\n")
                 error_critico = True
                 break
+            
+            out_nav.see(tk.END); root.update()
+            time.sleep(0.5)
         
         if error_critico:
             out_nav.insert(tk.END, f"\n[ABORTADO] Conexión Perdida.\n")
             break 
         else:
-            out_nav.insert(tk.END, f"\n[EXITO] Etapa {i+1} completada.\n")
+            if i == 0:
+                out_nav.insert(tk.END, f"\n[EXITO] Etapa 1 completada. ¡Paquete Entregado! Sonando alarma...\n")
+            else:
+                out_nav.insert(tk.END, f"\n[EXITO] Etapa 2 completada. ¡De vuelta en base! Sonando alarma...\n")
+                
+            out_nav.see(tk.END); root.update()
+            
+            try:
+                url_beep = f"http://{IP_ESP32_GLOBAL}/beep"
+                req_beep = urllib.request.Request(url_beep, headers={'Connection': 'close'})
+                urllib.request.urlopen(req_beep, timeout=5)
+                time.sleep(1)
+            except Exception as e:
+                out_nav.insert(tk.END, f"  [AVISO] Falla Wi-Fi al intentar pitar: {e}\n")
+                
             root.update()
             
     # Solo imprimimos el exito total si terminamos sin levantar banderas
     if not error_critico:
         out_nav.insert(tk.END, f"\n[EXITO TOTAL] Viaje logistico completado al 100%.\n")
-    rutas_pendientes_nav = []# Limpiar memoria para el siguiente envío
+    rutas_pendientes_nav = [] # Limpiar memoria para el siguiente envío
 
 def comparar_gui_nav():
     try:
@@ -318,7 +335,7 @@ btns.pack(pady=2)
 
 tk.Button(
     btns,
-    text='EJECUTAR RUTA',
+    text='CALCULAR RUTA',
     bg='#00b4d8',
     fg='white',
     font=('Arial', 11, 'bold'),
@@ -487,6 +504,7 @@ def agregar_paquete():
         messagebox.showerror('Error', 'Datos invalidos')
 
 def resolver(tipo):
+    global rutas_pendientes_mochila
     try:
         capacidad = 20
         limite = int(max_ent.get())
@@ -496,7 +514,9 @@ def resolver(tipo):
         else:
             gan, sel = resolver_mochila_greedy(paquetes, capacidad, limite)
             nombre = 'Greedy'
+            
         orden = definir_orden_prioridad([inicio] + [x['destino'] for x in sel])
+        
         out_mo.delete('1.0', tk.END)
         out_mo.insert(tk.END, f'Resultado {nombre}\n')
         out_mo.insert(tk.END, '='*45 + '\n')
@@ -516,15 +536,12 @@ def resolver(tipo):
 
         for paquete in sel:
             tabla_sel.insert('', tk.END, values=(
-                paquete['id'],
-                paquete['peso'],
-                paquete['prioridad'],
-                paquete['destino'],
+                paquete['id'], paquete['peso'], paquete['prioridad'], paquete['destino']
             ))
 
         actual = inicio
         tramo = 1
-        IP_ESP32 = "192.168.50.243"
+        rutas_pendientes_mochila = [] # Limpiamos la memoria de envíos
 
         for dest in orden[1:]:
             out_mo.insert(tk.END, f'Tramo {tramo}: {actual} -> {dest}\n')
@@ -537,43 +554,96 @@ def resolver(tipo):
             txt = capturar_salida(aux_ejecutar)
             out_mo.insert(tk.END, txt + '\n')
 
-            # Si no hay ruta, no movemos el robot y saltamos al siguiente destino
             if not ruta_tramo:
                 out_mo.insert(tk.END, f"[ALERTA] Destino inalcanzable. Se omite el paquete hacia {dest}.\n\n")
-                continue # Brinca a la siguiente vuelta del ciclo sin cambiar "actual"
-            # ---------------------------
+                continue 
             
-            comando_robot = traducir_para_esp32(ruta_tramo)
-            out_mo.insert(tk.END, f"[TRANSMITIENDO] ESP32: {comando_robot.strip()}\n")
-            out_mo.see(tk.END)
-            root.update()
+            comando_robot = traducir_para_esp32(ruta_tramo).strip()
             
-            try:
-                cmd_seguro = urllib.parse.quote(comando_robot.strip())
-                url = f"http://{IP_ESP32}/ruta?cmd={cmd_seguro}"
-                
-                # Usamos Request para forzar que el puerto se libere para el siguiente tramo
-                req = urllib.request.Request(url, headers={'Connection': 'close'})
-                with urllib.request.urlopen(req, timeout=60) as respuesta:
-                    # El .strip() limpia espacios invisibles
-                    resp_texto = respuesta.read().decode('utf-8').strip() 
-                    
-                    # Si la respuesta contiene "OK" (sea "OK" u "OK_LLEGUE"), marca exito
-                    if "OK" in resp_texto:
-                        out_mo.insert(tk.END, "[EXITO] Robot reportó llegada al punto intermedio.\n\n")
-                    else:
-                        out_mo.insert(tk.END, f"[AVISO] El carro respondio algo distinto: {resp_texto}\n\n")
-                        
-            except Exception as e:
-                out_mo.insert(tk.END, f"[ERROR] Falla Wi-Fi: {e}\n\n")
-
-            # Solo actualiza la posicion "actual" si el viaje fue exitoso
+            # Guardamos la info del tramo en la memoria en vez de enviarla
+            rutas_pendientes_mochila.append({
+                'tramo': tramo,
+                'origen': actual,
+                'destino': dest,
+                'comando': comando_robot
+            })
+            
+            out_mo.insert(tk.END, f"✓ Ruta calculada: {comando_robot}\n\n")
             actual = dest
             tramo += 1
-            root.update()
+            
+        out_mo.insert(tk.END, "-"*45 + "\n[INFO] Rutas listas en memoria.\n--> Presione 'TRANSMITIR AL ROBOT' para iniciar.\n")
+        root.update()
             
     except Exception as e:
         messagebox.showerror('Error', str(e))
+        
+def transmitir_mochila():
+    global IP_ESP32_GLOBAL, rutas_pendientes_mochila
+    if not rutas_pendientes_mochila:
+        messagebox.showwarning("Aviso", "Primero debe resolver la ruta de la mochila.")
+        return
+
+    out_mo.insert(tk.END, "\n" + "="*50 + "\nINICIANDO TRANSMISION WI-FI (MOCHILA)\n" + "="*50 + "\n")
+    error_critico = False
+
+    for tramo_data in rutas_pendientes_mochila:
+        tramo = tramo_data['tramo']
+        origen = tramo_data['origen']
+        destino = tramo_data['destino']
+        comando_robot = tramo_data['comando']
+
+        out_mo.insert(tk.END, f"\n[TRAMO {tramo}] Viajando de {origen} -> {destino}\n")
+        
+        comandos_separados = comando_robot.split(',')
+        for cmd in comandos_separados:
+            if not cmd: continue
+
+            out_mo.insert(tk.END, f"  -> Ejecutando {cmd}... ")
+            out_mo.see(tk.END); root.update()
+
+            try:
+                cmd_seguro = urllib.parse.quote(cmd)
+                url = f"http://{IP_ESP32_GLOBAL}/ruta?cmd={cmd_seguro}"
+                req = urllib.request.Request(url, headers={'Connection': 'close'})
+                
+                with urllib.request.urlopen(req, timeout=60) as respuesta:
+                    resp_texto = respuesta.read().decode('utf-8').strip()
+                    if "OK" in resp_texto:
+                        out_mo.insert(tk.END, "[LLEGÓ]\n")
+                    else:
+                        out_mo.insert(tk.END, f"[AVISO] {resp_texto}\n")
+                        
+            except socket.timeout:
+                out_mo.insert(tk.END, f"\n[ERROR] Timeout. Posible atasco.\n")
+                error_critico = True
+                break
+            except Exception as e:
+                out_mo.insert(tk.END, f"\n[ERROR RED] {e}\n")
+                error_critico = True
+                break
+
+            out_mo.see(tk.END); root.update()
+            time.sleep(0.5)
+
+        if error_critico:
+            out_mo.insert(tk.END, "\n[ABORTADO] Falla en este tramo. Deteniendo toda la operación.\n")
+            break
+        else:
+            out_mo.insert(tk.END, f"[EXITO] Robot llegó al punto de entrega {destino}.\n")
+
+            try:
+                url_beep = f"http://{IP_ESP32_GLOBAL}/beep"
+                req_beep = urllib.request.Request(url_beep, headers={'Connection': 'close'})
+                urllib.request.urlopen(req_beep, timeout=5)
+                time.sleep(1)
+            except Exception as e:
+                out_mo.insert(tk.END, f"  [AVISO] El carro llegó, pero falló la red al pitar: {e}\n")
+
+    if not error_critico:
+        out_mo.insert(tk.END, f"\n[EXITO TOTAL] Todos los paquetes entregados correctamente.\n")
+    
+    rutas_pendientes_mochila = [] # Limpiamos después de terminar
 
 # botones izquierda
 btf = tk.Frame(left, bg='#1b263b')
@@ -617,6 +687,19 @@ tk.Button(
     cursor='hand2',
     command=lambda: resolver('gr')
 ).grid(row=2,column=0,padx=4,pady=4)
+
+tk.Button(
+    btf,
+    text='TRANSMITIR AL ROBOT',
+    width=18,
+    height=2,
+    bg='#6f42c1',
+    fg='white',
+    font=('Arial', 10, 'bold'),
+    bd=0,
+    cursor='hand2',
+    command=transmitir_mochila
+).grid(row=4, column=0, padx=4, pady=4)
 
 tk.Button(
     btf,

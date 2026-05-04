@@ -11,6 +11,7 @@ WebServer server(80);
 const int IN1 = 11; const int IN2 = 12;
 const int IN3 = 13; const int IN4 = 14;
 const int SENSOR_IZQ = 4; const int SENSOR_DER = 5;
+const int PIN_BUZZER = 15;
 
 volatile int pasosIzq = 0;
 volatile int pasosDer = 0;
@@ -189,6 +190,7 @@ void setup() {
   pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
   pinMode(SENSOR_IZQ, INPUT); pinMode(SENSOR_DER, INPUT);
+  pinMode(PIN_BUZZER, OUTPUT);
   
   attachInterrupt(digitalPinToInterrupt(SENSOR_IZQ), contarPasoIzq, RISING);
   attachInterrupt(digitalPinToInterrupt(SENSOR_DER), contarPasoDer, RISING);
@@ -203,6 +205,16 @@ void setup() {
     ejecutarRutina();
   });
   server.on("/ruta", handleRuta);
+
+  server.on("/beep", []() {
+    server.send(200, "text/plain", "PITANDO");
+
+    tone(PIN_BUZZER, 2000, 150);
+    delay(200);
+    tone(PIN_BUZZER, 2500, 200);
+    delay(250);
+    noTone(PIN_BUZZER); 
+  });
 
   server.begin();
   Serial.println("=== SISTEMA LISTO ===");
