@@ -7,19 +7,23 @@ const char* ssid = "Xiaomi_2405";
 const char* password = "famqch0506";
 WebServer server(80);
 
-// --- PINES ---
+// --- CONFIGURACIÓN DE PINES ---
+// Pines para el puente H (Control de motores)
 const int IN1 = 11; const int IN2 = 12;
 const int IN3 = 13; const int IN4 = 14;
-const int SENSOR_IZQ = 4; const int SENSOR_DER = 5;
+const int SENSOR_IZQ = 4; const int SENSOR_DER = 5; // Pines para Encoders (Sensores de velocidad/pasos)
 const int PIN_BUZZER = 15;
 
+// Pines para Encoders (Sensores de velocidad/pasos)
 volatile int pasosIzq = 0;
 volatile int pasosDer = 0;
-char orientacionActual = 'S'; 
+char orientacionActual = 'S';  // Estado de la brújula interna del robot
 
+// --- FUNCIONES DE INTERRUPCIÓN ---
 void IRAM_ATTR contarPasoIzq() { pasosIzq++; }
 void IRAM_ATTR contarPasoDer() { pasosDer++; }
 
+// Detiene todos los motores y aplica una pequeña pausa de estabilización
 void detener() {
   digitalWrite(IN1, LOW); digitalWrite(IN2, LOW);
   digitalWrite(IN3, LOW); digitalWrite(IN4, LOW);
@@ -27,8 +31,9 @@ void detener() {
 }
 
 // --- FUNCIONES DE MOVIMIENTO CON DETECTOR DE ATASCO ---
+// Mueve el robot hacia adelante una distancia específica en centímetros
 void avanzar(float cm) {
-  int objetivo = cm / 1.021;
+  int objetivo = cm / 1.021; // Conversión de cm a pasos de encoder
   pasosIzq = 0; pasosDer = 0;
   
   unsigned long tiempoAtasco = millis();
@@ -37,7 +42,7 @@ void avanzar(float cm) {
   digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
   digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
 
-  while (pasosIzq < objetivo || pasosDer < objetivo) { 
+  while (pasosIzq < objetivo || pasosDer < objetivo) { // Bucle de control: corre hasta alcanzar los pasos o detectar atasco
     if (pasosIzq >= objetivo) { digitalWrite(IN1, LOW); digitalWrite(IN2, LOW); }
     if (pasosDer >= objetivo) { digitalWrite(IN3, LOW); digitalWrite(IN4, LOW); }
     
@@ -57,7 +62,7 @@ void avanzar(float cm) {
   }
   detener();
 }
-
+// Giro de 90 grados a la IZQUIERDA 
 void girar90() {
   int objetivoIzq = 12; 
   pasosIzq = 0; pasosDer = 0;
@@ -84,7 +89,7 @@ void girar90() {
   }
   detener(); 
 }
-
+// Giro de 90 grados a la DERECHA
 void girar90Der() {
   int objetivoDer = 12; 
   pasosIzq = 0; pasosDer = 0;
@@ -113,20 +118,22 @@ void girar90Der() {
 }
 
 // --- LÓGICA DE RUTA ---
+// Rutina de prueba: hace un cuadrado girando 4 veces a la derecha
 void ejecutarRutina() {
   for (int i = 0; i < 4; i++) {
     girar90Der(); 
     delay(1000); 
   }
 }
-
+// Calcula los giros necesarios para cambiar de una orientación a otra
 void apuntarHacia(char nuevaDir) {
   if (orientacionActual == nuevaDir) return; 
-
+// Lógica para giro de 180 grados (sentidos opuestos)
   if ((orientacionActual == 'D' && nuevaDir == 'I') || (orientacionActual == 'I' && nuevaDir == 'D') ||
       (orientacionActual == 'S' && nuevaDir == 'B') || (orientacionActual == 'B' && nuevaDir == 'S')) {
     girar90(); girar90(); 
   }
+  // Lógica para giro de 90 grados a la derecha
   else if ((orientacionActual == 'D' && nuevaDir == 'B') || (orientacionActual == 'B' && nuevaDir == 'I') ||
            (orientacionActual == 'I' && nuevaDir == 'S') || (orientacionActual == 'S' && nuevaDir == 'D')) {
     girar90Der();
@@ -134,16 +141,16 @@ void apuntarHacia(char nuevaDir) {
   else {
     girar90();
   }
-  orientacionActual = nuevaDir; 
+  orientacionActual = nuevaDir;  // Actualiza la brújula interna
 }
-
+// Procesa una cadena de comando tipo "S2,D1,B3" (S=Subir, D=Derecha, B=Bajar...)
 void ejecutarRutaDinamica(String ruta) {
   int indice = 0;
   while (indice < ruta.length()) {
-    char direccion = ruta.charAt(indice); 
+    char direccion = ruta.charAt(indice); // Lee la letra (Dirección)
     indice++;
     
-    String numStr = "";
+    String numStr = "";// Extrae el número de cuadros/pasos que sigue a la letra
     while (indice < ruta.length() && isDigit(ruta.charAt(indice))) {
       numStr += ruta.charAt(indice);
       indice++;
@@ -155,7 +162,7 @@ void ejecutarRutaDinamica(String ruta) {
       apuntarHacia(direccion);
       Serial.print("Avanzando cuadros: "); Serial.println(cuadros);
       for (int i = 0; i < cuadros; i++) {
-        avanzar(30); 
+        avanzar(30); // Cada "cuadro" equivale a 30cm
         delay(200);  
       }
     }
@@ -166,13 +173,14 @@ void ejecutarRutaDinamica(String ruta) {
 }
 
 // --- SERVIDOR WEB ---
+// Página principal con botón
 void handleRoot() {
   String html = "<html><body><h1>Control Robot ESP32</h1>";
   html += "<button onclick=\"location.href='/arrancar'\" style='width:200px;height:100px;font-size:30px;'>ARRANCAR CUADRADO</button>";
   html += "</body></html>";
   server.send(200, "text/html", html);
 }
-
+// Recibe comandos de ruta por URL
 void handleRuta() {
   if (server.hasArg("cmd")) {
     String comandos = server.arg("cmd");
@@ -186,19 +194,22 @@ void handleRuta() {
 void setup() {
   Serial.begin(115200);
   delay(2000); 
-  
+  // Configuración de pines
   pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
   pinMode(SENSOR_IZQ, INPUT); pinMode(SENSOR_DER, INPUT);
   pinMode(PIN_BUZZER, OUTPUT);
   
+  // Configuración de interrupciones para los encoders
   attachInterrupt(digitalPinToInterrupt(SENSOR_IZQ), contarPasoIzq, RISING);
   attachInterrupt(digitalPinToInterrupt(SENSOR_DER), contarPasoDer, RISING);
 
+  // Conexión a la red WiFi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
   Serial.println("\n✓ Conectado a WiFi! IP: " + WiFi.localIP().toString());
 
+  // Definición de rutas del servidor
   server.on("/", handleRoot);
   server.on("/arrancar", []() {
     server.send(200, "text/plain", "Arrancando...");
@@ -206,6 +217,7 @@ void setup() {
   });
   server.on("/ruta", handleRuta);
 
+  // Ruta para activar sonidos en el buzzer
   server.on("/beep", []() {
     server.send(200, "text/plain", "PITANDO");
 

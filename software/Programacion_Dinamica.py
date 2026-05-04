@@ -1,9 +1,10 @@
 from collections import deque
 from lector import cargar_y_convertir_mapa, construir_grafo_navegacion
 
+# --- ALGORITMO DE BÚSQUEDA ---
 def bfs(inicio, objetivo, grafo):
-    cola = deque([(inicio, [inicio])])
-    visitados = set([inicio])
+    cola = deque([(inicio, [inicio])]) # Fila para BFS: (nodo_actual, camino_recorrido)
+    visitados = set([inicio])    # Evita ciclos y repeticiones
 
     while cola:
         nodo, camino = cola.popleft()
@@ -11,14 +12,18 @@ def bfs(inicio, objetivo, grafo):
         if nodo == objetivo:
             return camino
 
-        for vecino, _ in grafo.get(nodo, []):
+        for vecino, _ in grafo.get(nodo, []): # Explorar vecinos
             if vecino not in visitados:
                 visitados.add(vecino)
-                cola.append((vecino, camino + [vecino]))
+                cola.append((vecino, camino + [vecino]))# Guardamos el nuevo nodo y extendemos el camino recorrido
 
     return None
 
 def calcular_distancias(nodos, grafo):
+    """
+    Calcula todas las distancias y caminos posibles entre cada par de puntos clave
+    (Base y Estaciones). Esto crea una matriz de distancias simplificada.
+    """
     dist = {}
     caminos = {}
 
@@ -28,17 +33,22 @@ def calcular_distancias(nodos, grafo):
                 camino = bfs(i, j, grafo)
                 
                 if camino is not None:
-                    dist[(i, j)] = len(camino)
-                    caminos[(i, j)] = camino
+                    dist[(i, j)] = len(camino) # Longitud del camino
+                    caminos[(i, j)] = camino   # El camino paso a paso
 
     return dist, caminos
 
+# --- OPTIMIZACIÓN DE RUTA (Traveling Salesman Problem) ---
 def tsp_dp_ruta(nodos, dist):
+    """
+    Resuelve el problema del viajero usando Programación Dinámica.
+    Busca el orden de visita que minimice el costo total.
+    """
     n = len(nodos)
-    memo = {}
-    siguiente_nodo = {}
+    memo = {}    # Para guardar resultados ya calculados
+    siguiente_nodo = {}    # Para reconstruir el camino después de optimizar
 
-    def dp(pos, visitados):
+    def dp(pos, visitados): # Caso base: Si todos los nodos han sido visitados, el viaje termina
         if visitados == (1 << n) - 1:
             return 0
 
@@ -48,13 +58,13 @@ def tsp_dp_ruta(nodos, dist):
         mejor = float('inf')
         mejor_sig = None
 
-        for sig in range(n):
-            if not (visitados & (1 << sig)):
+        for sig in range(n):# Probar todos los posibles siguientes nodos
+            if not (visitados & (1 << sig)): # Si el nodo 'sig' no ha sido visitado aún
                 nodo_actual = nodos[pos]
                 nodo_sig = nodos[sig]
 
-                if (nodo_actual, nodo_sig) in dist:
-                    costo = dist[(nodo_actual, nodo_sig)] + dp(
+                if (nodo_actual, nodo_sig) in dist:   # Si existe un camino entre estos puntos
+                    costo = dist[(nodo_actual, nodo_sig)] + dp(  # Cálculo recursivo del costo
                         sig,
                         visitados | (1 << sig)
                     )
@@ -80,11 +90,12 @@ def tsp_dp_ruta(nodos, dist):
             break
 
         ruta.append(nodos[sig])
-        visitados |= (1 << sig)
+        visitados |= (1 << sig)  # Marcar como visitado
         pos = sig
 
     return costo_total, ruta
 
+# --- ENSAMBLADO DE RUTA ---
 def construir_ruta_completa(base, orden, caminos):
     ruta_total = []
     actual = base
@@ -92,7 +103,7 @@ def construir_ruta_completa(base, orden, caminos):
     for destino in orden:
         tramo = caminos[(actual, destino)]
 
-        if ruta_total:
+        if ruta_total:# Evitamos duplicar el nodo de conexión entre tramos
             ruta_total += tramo[1:]
         else:
             ruta_total += tramo
@@ -107,14 +118,19 @@ def construir_ruta_completa(base, orden, caminos):
 
     return ruta_limpia
 
+# --- CONVERSIÓN A COMANDOS ---
 def ruta_a_movimientos(ruta):
+    """
+    Convierte una lista de coordenadas (x, y) en comandos de dirección 
+    legibles para el robot.
+    """
     movimientos = []
 
     for i in range(len(ruta) - 1):
         x1, y1 = ruta[i]
         x2, y2 = ruta[i+1]
 
-        if x2 == x1 and y2 == y1 + 1:
+        if x2 == x1 and y2 == y1 + 1:  # Lógica de coordenadas cartesianas
             movimientos.append("DERECHA")
         elif x2 == x1 and y2 == y1 - 1:
             movimientos.append("IZQUIERDA")
@@ -126,6 +142,10 @@ def ruta_a_movimientos(ruta):
     return movimientos
 
 def resolver_ruta_dinamica(matriz, inicio, destino):
+    """
+    Función de utilidad para encontrar un camino simple entre dos puntos
+    sin pasar por múltiples estaciones.
+    """
     from lector import construir_grafo_navegacion
     
     grafo = construir_grafo_navegacion(matriz)
@@ -134,6 +154,7 @@ def resolver_ruta_dinamica(matriz, inicio, destino):
     ruta = bfs(inicio, destino, grafo)
 
     return ruta
+
 
 if __name__ == "__main__":
     mapa, base, estaciones = cargar_y_convertir_mapa("mapas/tablero.json")

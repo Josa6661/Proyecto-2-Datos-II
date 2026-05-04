@@ -15,12 +15,14 @@ def solicitar_un_paquete(estaciones_validas):
     print(" CONFIGURACIÓN DE PAQUETE ÚNICO")
     print("-" * 40)
     
+    # Validación de ID
     while True:
         id_paquete = input("\nID del paquete: ").strip()
         if id_paquete: 
             break
         print("Error: El ID no puede estar vacío.")
     
+    # Validación de Peso
     while True:
         try:
             peso = int(input("Peso (Máximo 20kg): "))
@@ -29,7 +31,8 @@ def solicitar_un_paquete(estaciones_validas):
             print("Error: El peso debe ser mayor a 0 y no puede exceder los 20kg.")
         except ValueError:
             print("Error: Ingrese un número entero.")
-            
+
+    # Validación de Destino (debe coincidir con las estaciones cargadas del mapa)        
     print(f"\nEstaciones válidas en el mapa: {estaciones_validas}")
     while True:
         try:
@@ -51,7 +54,7 @@ def solicitar_multiples_paquetes(estaciones_validas):
     print(" CONFIGURACIÓN DE BODEGA")
     print("-" * 40)
     
-    while True:
+    while True:# Límite de capacidad del robot en cantidad de paquetes
         try:
             max_entregas = int(input("Máximo de entregas permitidas por viaje: "))
             if max_entregas > 0: break
@@ -68,12 +71,13 @@ def solicitar_multiples_paquetes(estaciones_validas):
         if not id_p:
             print("Error: El ID no puede estar vacío.")
             continue
-            
+
+        # Evitar IDs duplicados en la misma carga    
         if any(p["id"] == id_p for p in paquetes):
             print("Error: Ya registraste un paquete con ese ID.")
             continue
         
-        while True:
+        while True:  # Validar peso individual
             try:
                 peso = int(input("Peso (Máximo 20kg): "))
                 if 0 < peso <= 20: break
@@ -81,7 +85,7 @@ def solicitar_multiples_paquetes(estaciones_validas):
             except ValueError:
                 print("Error: Ingrese un número entero.")
         
-        while True:
+        while True: # Prioridad (útil para el algoritmo de la mochila)
             try:
                 prioridad = int(input("Prioridad (1-10): "))
                 if 1 <= prioridad <= 10: break
@@ -89,7 +93,7 @@ def solicitar_multiples_paquetes(estaciones_validas):
             except ValueError:
                 print("Error: Ingrese un número entero.")
         
-        while True:
+        while True:  # Coordenadas de destino
             try:
                 f = int(input("Fila del destino: "))
                 c = int(input("Columna del destino: "))
@@ -101,7 +105,7 @@ def solicitar_multiples_paquetes(estaciones_validas):
             
         paquetes.append({"id": id_p, "peso": peso, "prioridad": prioridad, "destino": dest})
         
-        while True:
+        while True:   # Condición de salida del bucle de captura
             respuesta = input("\n¿Agregar otro paquete? (s/n): ").lower()
             if respuesta in ['s', 'n']: break
             print("Error: Ingrese solo 's' o 'n'.")
@@ -114,6 +118,7 @@ def solicitar_multiples_paquetes(estaciones_validas):
 def ejecutar_navegacion(nombre, grafo, matriz, inicio, destino, id_t):
     """Ejecuta el algoritmo y muestra ruta/instrucciones"""
     ruta = None
+    # Selector de algoritmos según la opción del menú
     if id_t == "1": ruta = resolver_ruta_dinamica(matriz, inicio, destino)
     elif id_t == "2":
         pass
@@ -135,6 +140,7 @@ def ejecutar_navegacion(nombre, grafo, matriz, inicio, destino, id_t):
     return ruta
 
 def menu_navegacion(grafo, matriz, inicio, estaciones):
+    """Menú secundario para probar diferentes algoritmos con un solo paquete."""
     pkg = solicitar_un_paquete(estaciones)
     dest = pkg["destino"]
     
@@ -164,7 +170,7 @@ def menu_navegacion(grafo, matriz, inicio, estaciones):
                 print("paquetes:", [pkg])
                 aplicar_genetico(matriz, inicio, [pkg]) 
             else:
-                print(f"\n>>> IDA: BASE -> {dest}")
+                print(f"\n>>> IDA: BASE -> {dest}") # El sistema siempre intenta ir a la estación y regresar a la base
                 ruta_ida = ejecutar_navegacion(nombres[int(op)], grafo, matriz, inicio, dest, op)
                 
                 if ruta_ida:
@@ -186,6 +192,7 @@ def menu_navegacion(grafo, matriz, inicio, estaciones):
 
 
 def menu_mochila(grafo, matriz, inicio, estaciones):
+    """Menú secundario para la gestión de carga optimizada y entrega multi-punto."""
     max_e, bodega = solicitar_multiples_paquetes(estaciones)
     
     while True:
@@ -199,7 +206,9 @@ def menu_mochila(grafo, matriz, inicio, estaciones):
         op = input("\nOpción: ")
         if op == "0": break
         
+        # Fase de Selección de Paquetes (Mochila)
         if op == "1":
+            # Capacidad de peso fija en 20kg
             ganancia, seleccionados = resolver_mochila_dinamica(bodega, 20, max_e)
             print("\n--- RESULTADO: Programacion dinamica ---")
         elif op == "2":
@@ -217,6 +226,7 @@ def menu_mochila(grafo, matriz, inicio, estaciones):
         if orden[-1] != inicio:
             orden.append(inicio)
         
+        #Fase de Ejecución (Movimiento físico celda a celda)
         print("\n>>> EJECUTANDO RUTA DE LOGÍSTICA (Navegación tramo por tramo)")
         actual = inicio
         tramo_num = 1
@@ -243,6 +253,7 @@ def menu_mochila(grafo, matriz, inicio, estaciones):
 
 
 def main():
+    # Carga inicial del entorno (Mapa -> Grafo)
     ruta_mapa = "mapas/tablero.json"
     matriz, inicio, estaciones = cargar_y_convertir_mapa(ruta_mapa)
     grafo = construir_grafo_navegacion(matriz)
