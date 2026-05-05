@@ -31,6 +31,7 @@ def calcular_fitness(individuo, matriz, inicio):
     ruta = [inicio] + individuo + [inicio]
     distancia_total = 0
 
+    # se calcula la distancia total de la ruta sumando las distancias entre cada par de puntos consecutivos
     for i in range(len(ruta) - 1):
         if (ruta[i], ruta[i+1]) in diccionario_dijkstra:
             dist, _ = diccionario_dijkstra[(ruta[i], ruta[i+1])]
@@ -62,6 +63,7 @@ def crear_poblacion(destinos, tamano):
         return individuo
     
     poblacion = []
+    #se crean individuos aleatorios y se agregan a la población hasta alcanzar el tamaño deseado
     for _ in range(tamano):
         poblacion.append(crear_individuo(destinos))
     return poblacion
@@ -80,6 +82,9 @@ def seleccionar_padre(poblacion, matriz, inicio):
     torneo = random.sample(poblacion, 3)
     mejor = torneo[0]
 
+
+    #se evalúa cada individuo en la muestra y se compara su fitness con el mejor encontrado hasta ahora, 
+    # actualizando el mejor si se encuentra uno con menor distancia total
     for individuo in torneo:
         if calcular_fitness(individuo, matriz, inicio) < calcular_fitness(mejor, matriz, inicio):
             mejor = individuo
@@ -97,10 +102,12 @@ def cruzar(padre1, padre2):
 
     hijo = [None] * tamaño
 
+    # se copia el segmento seleccionado del padre1 al hijo
     for i in range(a, b):
         hijo[i] = padre1[i]
 
     pos = 0
+    # se completa el hijo con los genes del padre2 que no están en el segmento copiado, asegurando que no se repitan destinos
     for gen in padre2:
         if gen not in hijo:
             while hijo[pos] is not None:
@@ -114,7 +121,10 @@ def mutar(individuo, probabilidad=0.1):
     """
     toma el individuo y con cierta probabilidad, le hace una variacion aleatoria (intercambio de dos destinos).
     """
+
     if random.random() < probabilidad:
+
+        # se seleccionan dos posiciones aleatorias en el individuo y se intercambian los destinos en esas posiciones para introducir variación en la ruta
         i, j = random.sample(range(len(individuo)), 2)
         individuo[i], individuo[j] = individuo[j], individuo[i]
 
@@ -137,8 +147,12 @@ def construir_camino_completo(inicio,orden, matriz_mapa):
     orden = [inicio] + orden + [inicio]  
     posicion_actual = orden[0]
 
+    # se recorre el orden de visita y se construye el camino completo concatenando los caminos entre cada
+    # par de puntos consecutivos utilizando Dijkstra, almacenando los resultados en el diccionario para evitar cálculos repetidos
     for k in range(1, len(orden)):
 
+        # se verifica si el camino entre la posición actual y el siguiente destino ya ha sido calculado
+        # y almacenado en el diccionario, si no, se calcula usando Dijkstra y se almacena en el diccionario para futuras referencias
         tramo = diccionario_dijkstra.get((posicion_actual, orden[k]))
         if tramo is None:
             tramo = dijkstra(matriz_mapa, posicion_actual, orden[k])
@@ -172,6 +186,9 @@ def obtener_destinos_accesibles(inicio, destinos, matriz_mapa):
     - destinos_accesibles: lista de tuplas (fila, col) de estaciones que son accesibles desde el inicio
     """
     destinos_accesibles = []
+
+    # se verifica cada destino para determinar si es accesible desde el inicio utilizando Dijkstra, 
+    # almacenando los resultados en el diccionario para evitar cálculos repetidos y mejorando la eficiencia
     for destino in destinos:
         dist, _ = dijkstra(matriz_mapa, inicio, destino)
         diccionario_dijkstra[(inicio, destino)] = (dist, _)
@@ -207,6 +224,8 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
         print("No hay paquetes.")
         return [], 0
 
+    # se extraen los destinos de los paquetes para planificar la ruta, 
+    # si no hay destinos, se construye el camino directo desde el inicio
     destinos = [p["destino"] for p in paquetes]
 
     if len(destinos) < 2:
@@ -234,19 +253,21 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
         return [], 0
 
     else:
-
+        
         n=len(destinos_accesibles)
         if n <= 3:
-            generaciones = 5
+            generaciones = 10
             tam_poblacion = 5
         else:
-            generaciones = 20
-            tam_poblacion = 20
+            generaciones = 30
+            tam_poblacion = 30
 
         destinos = destinos_accesibles
 
         poblacion = crear_poblacion(destinos, tam_poblacion)
 
+        # se ejecutan varias generaciones del algoritmo genético, en cada generación se crea una nueva población de individuos (rutas)
+        #  a partir de la población actual utilizando selección, cruce y mutación
         for _ in range(generaciones):
             nueva_poblacion = []
 
@@ -262,6 +283,8 @@ def aplicar_genetico(matriz_mapa, inicio, paquetes):
 
         mejor = poblacion[0]
 
+        # se evalúa cada individuo en la población final y se compara su fitness con el mejor encontrado hasta ahora, 
+        # actualizando el mejor si se encuentra uno con menor distancia total
         for individuo in poblacion:
             if calcular_fitness(individuo, matriz_mapa, inicio) < calcular_fitness(mejor, matriz_mapa, inicio):
                 mejor = individuo

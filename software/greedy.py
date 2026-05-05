@@ -27,6 +27,8 @@ def dijkstra(matriz, origen, destino):
     cols = len(matriz[0])
     movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
+    # se inicializa la matriz de distancias con infinito y se establece la distancia del origen a sí mismo como 0,
+    #  además de un diccionario para rastrear el padre de cada nodo en el camino
     dist = [[float("inf")] * cols for i in range(filas)]
     dist[origen[0]][origen[1]] = 0
 
@@ -36,6 +38,8 @@ def dijkstra(matriz, origen, destino):
     # Cola de prioridad: (costo_acumulado, (fila, col))
     heap = [(0, origen)]
 
+    # se procesa la cola de prioridad hasta que esté vacía o se alcance el destino,
+    #  expandiendo los nodos vecinos y actualizando las distancias si se encuentra un camino más corto
     while heap:
         costo_actual, actual = heapq.heappop(heap)
 
@@ -61,6 +65,8 @@ def dijkstra(matriz, origen, destino):
             if 0 <= vecino_fila < filas and 0 <= vecino_columna < cols and matriz[vecino_fila][vecino_columna] != 0:
                 nuevo_costo = costo_actual + 1
 
+                # si se encuentra un camino más corto al vecino, se actualiza la distancia y el padre,
+                #  y se agrega a la cola de prioridad
                 if nuevo_costo < dist[vecino_fila][vecino_columna]:
                     dist[vecino_fila][vecino_columna] = nuevo_costo
                     padre[(vecino_fila, vecino_columna)] = actual
@@ -83,10 +89,14 @@ def definir_orden_prioridad(puntos):
     destinos = puntos[1:]
     orden = [punto_actual]  # empezamos en la base
 
+    # se itera sobre los destinos restantes y se selecciona el más cercano al punto actual, agregándolo al orden de visita 
+    # y actualizando el punto actual, repitiendo este proceso hasta que se hayan visitado todos los destinos
     for i in range(len(destinos)):
         distancia_menor = float('inf')
         mejor_destino = None
 
+        # se calcula la distancia euclidiana entre el punto actual y cada uno de los destinos restantes, 
+        # seleccionando el destino con la distancia menor
         for j in range(len(destinos)):
             deltax = abs(punto_actual[0] - destinos[j][0])
             deltay = abs(punto_actual[1] - destinos[j][1])
@@ -119,6 +129,8 @@ def construir_ruta_completa(orden, matriz_mapa):
     camino_total = []
     posicion_actual = orden[0]
 
+    # se recorre el orden de visita y se construye el camino completo concatenando los caminos entre cada par de puntos consecutivos
+    #  utilizando Dijkstra, almacenando los resultados en el diccionario para evitar cálculos repetidos
     for k in range(1, len(orden)):
         x, camino = dijkstra(matriz_mapa, posicion_actual, orden[k])
 
